@@ -6,7 +6,7 @@ with `hs bench -n 50` (warm-socket loop in the CLI).
 
 | Command | hs | adb | Speedup |
 |---|---:|---:|---:|
-| any `hs state X` (push-mirror local read) | **0.21 µs** | 100+ ms via `dumpsys` | **~10 000×** |
+| `hs show` / `hs info` (push-mirror local read) | **0.21 µs** | 100+ ms via `dumpsys` | **~10 000×** |
 | `hs see x.jpg` vs `adb exec-out screencap -p` | **7.7 ms** | 705 ms | **92×** |
 | `hs info` (12-field snapshot, file read) | **2.5 ms** | 200+ ms via N getprops | **80×+** |
 | `hs show top` vs `dumpsys window \| grep` | **2.0 ms** | 86 ms | **43×** |

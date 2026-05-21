@@ -18,7 +18,7 @@ The daemon runs as the shell UID via `app_process` with hidden-API
 restrictions lifted. The host runs a background `state-daemon` that
 subscribes to `state_watch` and atomically rewrites
 `~/.handsets/state-<port>.json` on every event-driven refresh. `hs info` /
-`hs show` / `hs state X` all read straight out of that file.
+`hs info` / `hs show` all read straight out of that file.
 
 ## Layout
 

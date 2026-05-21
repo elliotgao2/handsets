@@ -6,16 +6,29 @@
   <em>The device control plane you wished <code>adb</code> was.</em>
 </p>
 
+<p align="center">
+  <a href="https://github.com/elliotgao2/handsets/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/elliotgao2/handsets?color=blue"></a>
+  <a href="https://github.com/elliotgao2/handsets/actions/workflows/release.yml"><img alt="release build" src="https://img.shields.io/github/actions/workflow/status/elliotgao2/handsets/release.yml?label=release"></a>
+  <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
+</p>
+
 ---
 
 ## Install
+
+Requires `adb` on `$PATH`.
+
+- macOS: `brew install android-platform-tools`
+- Debian/Ubuntu: `sudo apt-get install -y android-tools-adb`
+- Arch: `sudo pacman -S android-tools`
+
+Then:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.0 …`. Then
-`hs use` against a connected device.
+macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.2 …`.
 
 <details>
 <summary>Build from source</summary>
@@ -29,6 +42,28 @@ ln -s "$PWD/handsets-cli/target/release/hs" /usr/local/bin/hs
 ```
 
 </details>
+
+## Quickstart
+
+```bash
+hs use                              # auto-detects device, starts the daemon
+hs info                             # confirm — should print the device snapshot
+hs ui -i                            # see what's on screen, in LLM-friendly form
+hs tap "Continue"                   # text-lookup tap
+hs drop                             # tear down the daemon when done
+```
+
+## How it works
+
+The host CLI (`hs`) speaks a length-prefixed binary protocol over an
+`adb forward`-ed TCP socket to a small JVM daemon running on the device
+under `app_process` (shell UID, hidden-API restrictions lifted). The
+daemon stays warm between commands, so there's no per-call cold start.
+A host-side mirror subscribes to the daemon's `state_watch` stream and
+atomically rewrites `~/.handsets/state-<port>.json` on every push, so
+`hs info` / `hs show` are µs-level file reads. See
+[Architecture](docs/architecture.md) for the binder/reflection details
+and the sharp edges.
 
 ## At a glance
 
@@ -90,6 +125,15 @@ hs show  [top | PKG]                device state | top activity | package info
 hs apps  [--3rd]                    installed packages
 ```
 
+Selector examples:
+
+```bash
+hs find 'Button[text="Sign in"]'                       # exact text match
+hs find 'EditText[rid~=email]'                         # id contains "email"
+hs find 'TextView[text~=Login]:clickable'              # flag filter
+hs find 'Button[text="OK"], Button[text="Continue"]'   # comma = OR
+```
+
 ### Activity
 
 ```
@@ -140,6 +184,8 @@ hs shell                            interactive REPL (history, built-ins,
 hs do     [WIRE]                    same REPL, or one-shot raw wire
 ```
 
+Raw wire reference: see [docs/wire.md](docs/wire.md).
+
 ## vs `uiautomator2`, Appium
 
 Both wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
@@ -169,3 +215,8 @@ single-call latency and shell composition.
 - [Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
 - [Sharp edges](docs/sharp-edges.md)
+- [Wire reference](docs/wire.md)
+
+## License
+
+MIT — see [LICENSE](LICENSE).
