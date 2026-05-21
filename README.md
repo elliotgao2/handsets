@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.svg" alt="Handsets — a high-performance Android control CLI, built for agents." width="540">
+  <img src="logo.svg" alt="Handsets — a high-performance Android control CLI, built for agents and humans." width="540">
 </p>
 
 <p align="center">

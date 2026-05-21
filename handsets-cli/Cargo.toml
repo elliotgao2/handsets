@@ -2,7 +2,7 @@
 name = "hs"
 version = "0.1.0"
 edition = "2021"
-description = "Handsets — high-performance Android control CLI, built for agents"
+description = "Handsets — high-performance Android control CLI, built for agents and humans"
 
 [[bin]]
 name = "hs"
