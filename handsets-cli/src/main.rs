@@ -1292,7 +1292,21 @@ pub(crate) struct Conn {
 
 impl Conn {
     pub(crate) fn connect(host: &str, port: u16) -> io::Result<Self> {
-        let sock = TcpStream::connect((host, port))?;
+        let sock = match TcpStream::connect((host, port)) {
+            Ok(s) => s,
+            Err(e) if e.kind() == io::ErrorKind::ConnectionRefused
+                    && is_local(host) => {
+                // No daemon listening on the default port. If exactly
+                // one device is attached, transparently auto-`hs use`
+                // it so users don't have to do that step manually.
+                match try_auto_use(port) {
+                    Ok(()) => TcpStream::connect((host, port))?,
+                    Err(why) => return Err(io::Error::new(e.kind(),
+                        format!("no daemon on {host}:{port}; {why}"))),
+                }
+            }
+            Err(e) => return Err(e),
+        };
         sock.set_nodelay(true)?;
         sock.set_read_timeout(Some(Duration::from_secs(30)))?;
         sock.set_write_timeout(Some(Duration::from_secs(10)))?;
@@ -1446,10 +1460,22 @@ fn ms(d: Duration) -> f64 {
 }
 
 fn print_devices() -> io::Result<()> {
-    let rows = daemon::devices()?;
+    let mut rows = daemon::devices()?;
     if rows.is_empty() {
         println!("no devices attached");
         return Ok(());
+    }
+    // If exactly one device is attached and no daemon is running for it
+    // yet, transparently `hs use` so the listing shows it ready to go.
+    if rows.len() == 1 && rows[0].state == "device" && !rows[0].running {
+        let opts = daemon::ConnectOpts {
+            serial: Some(rows[0].serial.clone()),
+            port: None,
+        };
+        if let Ok(port) = daemon::connect(&opts) {
+            eprintln!("daemon up on tcp:{port} (auto)");
+            rows = daemon::devices()?;
+        }
     }
     println!(
         "{:<24} {:<10} {:<7} {:<8} {:<10} {:<16} model",
@@ -1468,4 +1494,32 @@ fn print_devices() -> io::Result<()> {
         );
     }
     Ok(())
+}
+
+fn is_local(host: &str) -> bool {
+    matches!(host, "127.0.0.1" | "localhost" | "::1")
+}
+
+/// If exactly one device is attached, run the equivalent of `hs use`
+/// against it so daemon-needing verbs work without an explicit `hs use`
+/// first. Returns a short human reason on the error path.
+fn try_auto_use(port: u16) -> Result<(), String> {
+    let rows = daemon::devices().map_err(|e| format!("adb devices failed: {e}"))?;
+    let alive: Vec<_> = rows.iter().filter(|r| r.state == "device").collect();
+    match alive.len() {
+        0 => Err("no devices attached".into()),
+        1 => {
+            let opts = daemon::ConnectOpts {
+                serial: Some(alive[0].serial.clone()),
+                port: Some(port),
+            };
+            let p = daemon::connect(&opts)
+                .map_err(|e| format!("daemon::connect failed: {e}"))?;
+            eprintln!("daemon up on tcp:{p} (auto)");
+            Ok(())
+        }
+        n => Err(format!(
+            "{n} devices attached; pass `hs use SERIAL` to pick one"
+        )),
+    }
 }
