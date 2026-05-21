@@ -187,20 +187,47 @@ Raw wire reference: see [docs/wire.md](docs/wire.md).
 
 ## vs `uiautomator2`, Appium
 
-Both wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
-and pay for the framework. Handsets runs a hand-rolled daemon directly
-under `app_process` and talks to binders by reflection, so the wire is
-tighter and the dump format is built for agents rather than reporters.
+Handsets wins on two axes:
+
+1. **Latency** — a few milliseconds per call, versus tens to hundreds.
+   Both alternatives wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
+   and pay for the framework + an HTTP / WebDriver hop on every call.
+   Handsets keeps a JVM daemon warm under `app_process` and a state
+   mirror on the host, so reads of cached state are sub-microsecond.
+2. **Scriptable from anywhere** — a single CLI binary that any shell,
+   Makefile, language, or LLM agent loop drives via `subprocess`.
+   No Python-only client, no Node server to start.
+
+Same "tap the Login button" task, three styles:
+
+```bash
+# Handsets — one CLI call, language-agnostic
+hs tap "Login"
+```
+
+```python
+# uiautomator2 — Python only
+import uiautomator2 as u2
+u2.connect()(text="Login").click()
+```
+
+```python
+# Appium — start a WebDriver server first
+from appium import webdriver
+d = webdriver.Remote("http://127.0.0.1:4723", caps)
+d.find_element("xpath", "//*[@text='Login']").click()
+```
 
 |  | **Handsets** | uiautomator2 | Appium |
 |---|---|---|---|
-| Wire | TCP long socket, length-prefixed binary | HTTP/JSON via `atx-agent` | WebDriver over HTTP |
-| On-device install | push 1 jar (~few hundred KB) | 2 apks + `atx-agent` | driver apk + Node server |
-| Daemon start | `< 200 ms` via `app_process`, no UIAutomator framework | UIAutomator instrumentation each session | UIAutomator + WebDriver bridge |
-| State reads | µs from host-mirrored file (`hs info` / `hs show`) | ms per round-trip | ms+ per round-trip |
+| Single-call latency | **2–7 ms** typical | ~30–100 ms | ~100–500 ms |
+| Daemon start | **< 200 ms** via `app_process`, no UIAutomator framework | UIAutomator instrumentation each session | UIAutomator + WebDriver bridge |
+| State reads | **µs from host-mirrored file** (`hs info` / `hs show`) | ms per round-trip | ms+ per round-trip |
 | UI dump for agents | `hs ui -i` flat, **~10× fewer tokens** | full XML | full XML |
+| On-device install | **push 1 jar** (~few hundred KB) | 2 apks + `atx-agent` | driver apk + Node server |
+| Wire | TCP + length-prefixed binary | HTTP/JSON via `atx-agent` | WebDriver over HTTP |
 | Selector | CSS-like `Tag[attr=val][attr~=sub]:flag` | `d(text=…, className=…)` chained | Selenium strategies |
-| Bound to | any language via subprocess | Python only | multi-lang via WebDriver |
+| Bound to | **any language via subprocess** | Python only | multi-lang via WebDriver |
 | Best at | LLM agents, ad-hoc scripts, high-freq small ops | Python device scraping | cross-platform CI suites |
 
 Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE
