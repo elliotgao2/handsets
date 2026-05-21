@@ -202,7 +202,7 @@ fn lookup_type<'a>(col: &str, n: Option<i64>, type_maps: &'a [TypeMap]) -> Optio
 }
 
 fn is_date_col(c: &str) -> bool {
-    matches!(c, "date" | "begin" | "end" | "last_time_contacted")
+    matches!(c, "date" | "begin" | "end" | "last_time_contacted" | "posted")
 }
 
 fn truncate_chars(s: &str, w: usize) -> String {

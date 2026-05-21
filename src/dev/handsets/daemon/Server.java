@@ -24,6 +24,7 @@ public final class Server {
         public Pm pm;
         public Manifest manifest;
         public Providers providers;
+        public Notifications notifs;
         public Am am;
         public Props props;
         public Dumpsys dumpsys;
@@ -247,6 +248,9 @@ public final class Server {
                         break;
                     case "calendar":
                         resp = runCalendar(cmd);
+                        break;
+                    case "notifications":
+                        resp = runNotifications(cmd);
                         break;
                     case "quit":
                         writeFrame(out, "bye".getBytes(StandardCharsets.UTF_8));
@@ -954,6 +958,13 @@ public final class Server {
         long to   = longArg(cmd, "to",   now + 7L * 24 * 60 * 60 * 1000);
         int limit = (int) longArg(cmd, "limit", 50);
         return h.providers.calendar(from, to, limit);
+    }
+
+    private byte[] runNotifications(String cmd) {
+        String pkg = strArg(cmd, "pkg");
+        int limit  = (int) longArg(cmd, "limit", 50);
+        boolean history = longArg(cmd, "history", 0) != 0;
+        return h.notifs.dump(pkg, limit, history);
     }
 
     // ---------- key=value arg helpers ----------

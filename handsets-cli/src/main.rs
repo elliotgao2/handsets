@@ -82,6 +82,8 @@ Usage: hs [--host HOST] [--port PORT] <verb> [args]
   hs contacts [--limit N] [--json]                       contacts list
   hs calendar [--days N | --from MS --to MS] [--limit N] [--json]
                                                          upcoming events
+  hs notif    [PKG] [--history] [--limit N] [--json]    active notification tray
+                                                         (or recent history)
   hs open PKG | PKG/.Cls             start activity
   hs close PKG                       force-stop
   hs install APK [APK ...]           streamed PackageInstaller session
@@ -164,6 +166,7 @@ enum Cmd {
     Calls { kind: String, limit: u32, json: bool },
     Contacts { limit: u32, json: bool },
     Calendar { from_ms: Option<i64>, to_ms: Option<i64>, days: Option<i64>, limit: u32, json: bool },
+    Notif { pkg: Option<String>, history: bool, limit: u32, json: bool },
 }
 
 // SMS type codes — Android Telephony.TextBasedSmsColumns.
@@ -557,6 +560,30 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             }
             Cmd::Contacts { limit, json }
         }
+        Some((&"notif", rest)) => {
+            let mut limit = 50_u32;
+            let mut json = false;
+            let mut history = false;
+            let mut pkg: Option<String> = None;
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i] {
+                    "--limit" => {
+                        i += 1;
+                        limit = rest.get(i).ok_or("--limit needs N")?.parse()
+                            .map_err(|_| "bad --limit".to_string())?;
+                    }
+                    "--json"    => json = true,
+                    "--history" => history = true,
+                    other if pkg.is_none() && !other.starts_with("--") => {
+                        pkg = Some(other.to_string());
+                    }
+                    other => return Err(format!("unknown notif arg: {other}")),
+                }
+                i += 1;
+            }
+            Cmd::Notif { pkg, history, limit, json }
+        }
         Some((&"calendar", rest)) => {
             let mut limit = 50_u32;
             let mut json = false;
@@ -712,6 +739,13 @@ fn run(opts: &Opts) -> io::Result<()> {
                 &[provider::TypeMap { column: "type", map: PHONE_TYPES }],
                 &[("data1", "number"), ("data2", "type"), ("data3", "label")])
         }
+        Cmd::Notif { pkg, history, limit, json } => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let mut wire = format!("notifications limit={limit}");
+            if *history { wire.push_str(" history=1"); }
+            if let Some(p) = pkg { wire.push_str(&format!(" pkg={p}")); }
+            provider::run(&mut conn, &wire, *json, &[], &[])
+        }
         Cmd::Calendar { from_ms, to_ms, days, limit, json } => {
             // Resolve window. --days N takes precedence over --from/--to if
             // both are given; default = now → now + 7 days.
@@ -787,6 +821,7 @@ fn run(opts: &Opts) -> io::Result<()> {
                 | Cmd::Calls { .. }
                 | Cmd::Contacts { .. }
                 | Cmd::Calendar { .. }
+                | Cmd::Notif { .. }
                 | Cmd::Ui { .. } => unreachable!(),
             };
             let body = conn.call(&wire)?;
