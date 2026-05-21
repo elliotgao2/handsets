@@ -8,7 +8,6 @@
 
 <p align="center">
   <a href="https://github.com/elliotgao2/handsets/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/elliotgao2/handsets?color=blue"></a>
-  <a href="https://github.com/elliotgao2/handsets/actions/workflows/release.yml"><img alt="release build" src="https://img.shields.io/github/actions/workflow/status/elliotgao2/handsets/release.yml?label=release"></a>
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
