@@ -1,6 +1,6 @@
 // connect / disconnect / devices — manages the on-device handsets daemon
-// lifecycle from the host. Equivalent to running run-server.sh / stop-server.sh
-// but as first-class subcommands so the user never has to leave the CLI.
+// lifecycle from the host (push jar, start app_process, adb-forward TCP,
+// kill on disconnect).
 
 use std::io;
 use std::path::PathBuf;

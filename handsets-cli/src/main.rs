@@ -1,4 +1,4 @@
-// hs CLI — Rust port of client.py.
+// hs CLI.
 //
 // Talks to the on-device daemon over a TCP socket using a length-prefixed
 // binary protocol (uint32 big-endian length + payload, both directions).

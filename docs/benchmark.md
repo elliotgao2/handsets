@@ -1,8 +1,8 @@
 # Benchmark
 
 Same emulator, sorted by speedup. `hs` = host-side mirror file or one
-warm-socket round-trip; `adb` = fresh invocation per call. Numbers
-reproduced with [`bench.sh`](../bench.sh).
+warm-socket round-trip; `adb` = fresh invocation per call. Reproduce
+with `hs bench -n 50` (warm-socket loop in the CLI).
 
 | Command | hs | adb | Speedup |
 |---|---:|---:|---:|
