@@ -89,8 +89,40 @@ public final class Screenshot {
         }
         Class<?> atCls = Class.forName("android.app.ActivityThread");
         Object atInst = atCls.getMethod("systemMain").invoke(null);
-        Context ctx = (Context) atCls.getMethod("getSystemContext").invoke(atInst);
-        return (DisplayManager) ctx.getSystemService(Context.DISPLAY_SERVICE);
+        Context sysCtx = (Context) atCls.getMethod("getSystemContext").invoke(atInst);
+        // Android 14+ rejects createVirtualDisplay when the Context's
+        // op-package name doesn't map to the calling UID. The system
+        // Context's package is "android" but we run as shell UID (2000),
+        // so the check fails with:
+        //   SecurityException: packageName must match the calling uid
+        // Three-tier strategy:
+        //  1. createPackageContext("com.android.shell", 0) — usually
+        //     returns a context whose getOpPackageName() is the shell
+        //     package, which matches shell UID.
+        //  2. If that didn't change getOpPackageName(), wrap the result
+        //     to force the override (DisplayManagerGlobal reads
+        //     context.getOpPackageName() to populate the system request).
+        //  3. If createPackageContext threw, wrap the system context.
+        Context base = sysCtx;
+        String chosen;
+        try {
+            base = sysCtx.createPackageContext("com.android.shell", 0);
+            chosen = "com.android.shell (pkg-ctx)";
+        } catch (Throwable t) {
+            System.err.println("screenshot: createPackageContext(com.android.shell) failed: " + t);
+            chosen = "com.android.shell (wrapped sysCtx)";
+        }
+        if (!"com.android.shell".equals(base.getOpPackageName())) {
+            final Context inner = base;
+            base = new android.content.ContextWrapper(inner) {
+                @Override public String getPackageName()   { return "com.android.shell"; }
+                @Override public String getOpPackageName() { return "com.android.shell"; }
+            };
+            chosen += " + wrapper";
+        }
+        System.err.println("screenshot: display ctx = " + chosen
+                + ", op=" + base.getOpPackageName());
+        return (DisplayManager) base.getSystemService(Context.DISPLAY_SERVICE);
     }
 
     public byte[] capture(CaptureArgs args) {
