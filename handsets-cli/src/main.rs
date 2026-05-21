@@ -176,6 +176,13 @@ const CALL_TYPES: &[(i64, &str)] = &[
     (1, "in"), (2, "out"), (3, "missed"), (4, "voicemail"),
     (5, "rejected"), (6, "blocked"), (7, "external"),
 ];
+// Phone-number type codes — Android ContactsContract.CommonDataKinds.Phone.
+const PHONE_TYPES: &[(i64, &str)] = &[
+    (1, "home"),     (2, "mobile"),     (3, "work"),
+    (4, "fax-work"), (5, "fax-home"),   (6, "pager"),
+    (7, "other"),    (9, "car"),        (10, "company"),
+    (12, "main"),    (17, "work-mob"),
+];
 
 #[derive(Debug, Clone, Copy)]
 enum UiFormat { Human, Interactive, Json, Xml }
@@ -685,18 +692,25 @@ fn run(opts: &Opts) -> io::Result<()> {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("sms type={kind} limit={limit}");
             provider::run(&mut conn, &wire, *json,
-                &[provider::TypeMap { column: "type", map: SMS_TYPES }])
+                &[provider::TypeMap { column: "type", map: SMS_TYPES }],
+                &[])
         }
         Cmd::Calls { kind, limit, json } => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("calls type={kind} limit={limit}");
             provider::run(&mut conn, &wire, *json,
-                &[provider::TypeMap { column: "type", map: CALL_TYPES }])
+                &[provider::TypeMap { column: "type", map: CALL_TYPES }],
+                &[])
         }
         Cmd::Contacts { limit, json } => {
+            // Daemon emits raw Phone columns (data1/data2/data3) since
+            // ContactsContract rejects SQL AS aliases. Rename them to
+            // friendly labels for display + JSON.
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("contacts limit={limit}");
-            provider::run(&mut conn, &wire, *json, &[])
+            provider::run(&mut conn, &wire, *json,
+                &[provider::TypeMap { column: "type", map: PHONE_TYPES }],
+                &[("data1", "number"), ("data2", "type"), ("data3", "label")])
         }
         Cmd::Calendar { from_ms, to_ms, days, limit, json } => {
             // Resolve window. --days N takes precedence over --from/--to if
@@ -713,7 +727,7 @@ fn run(opts: &Opts) -> io::Result<()> {
             };
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("calendar from={from} to={to} limit={limit}");
-            provider::run(&mut conn, &wire, *json, &[])
+            provider::run(&mut conn, &wire, *json, &[], &[])
         }
         Cmd::Submit(sel) => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;

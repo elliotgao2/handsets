@@ -18,6 +18,7 @@ pub(crate) fn run(
     wire: &str,
     json_out: bool,
     type_maps: &[TypeMap],
+    col_rename: &[(&str, &str)],
 ) -> io::Result<()> {
     let body = conn.call(wire)?;
     if body.starts_with(b"ERR:") {
@@ -28,7 +29,14 @@ pub(crate) fn run(
 
     let mut lines = text.lines();
     let header_line = lines.next().ok_or_else(|| io::Error::other("empty response"))?;
-    let header = parse_string_array(header_line)?;
+    let mut header = parse_string_array(header_line)?;
+    if !col_rename.is_empty() {
+        for h in header.iter_mut() {
+            if let Some(&(_, to)) = col_rename.iter().find(|(from, _)| *from == h) {
+                *h = to.to_string();
+            }
+        }
+    }
 
     let mut rows: Vec<Vec<json::Value>> = Vec::new();
     for line in lines {
@@ -159,22 +167,38 @@ fn format_cell(col: &str, v: &json::Value, type_maps: &[TypeMap]) -> String {
     match v {
         json::Value::Null => String::new(),
         json::Value::Bool(b) => b.to_string(),
-        json::Value::Str(s) => s.replace('\n', " ").replace('\r', " "),
+        json::Value::Str(s) => {
+            // Some integer-valued columns (Phone.TYPE = data2 etc.)
+            // come back as strings because the underlying SQLite
+            // column is TEXT. Apply the type-map if one matches.
+            if let Some(label) = lookup_type(col, s.parse::<i64>().ok(), type_maps) {
+                return label.to_string();
+            }
+            s.replace('\n', " ").replace('\r', " ")
+        }
         json::Value::Num(n) => {
             if is_date_col(col) && *n > 0 {
                 return fmt_unix_ms(*n);
             }
-            for tm in type_maps {
-                if tm.column == col {
-                    if let Some(&(_, label)) = tm.map.iter().find(|(c, _)| *c == *n) {
-                        return label.to_string();
-                    }
-                }
+            if let Some(label) = lookup_type(col, Some(*n), type_maps) {
+                return label.to_string();
             }
             n.to_string()
         }
         _ => "?".into(),
     }
+}
+
+fn lookup_type<'a>(col: &str, n: Option<i64>, type_maps: &'a [TypeMap]) -> Option<&'a str> {
+    let n = n?;
+    for tm in type_maps {
+        if tm.column == col {
+            if let Some(&(_, label)) = tm.map.iter().find(|(c, _)| *c == n) {
+                return Some(label);
+            }
+        }
+    }
+    None
 }
 
 fn is_date_col(c: &str) -> bool {

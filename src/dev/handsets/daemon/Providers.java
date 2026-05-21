@@ -84,10 +84,27 @@ final class Providers {
     }
 
     byte[] contacts(int limit) {
+        // /data/phones is the pre-joined view of every phone-number data
+        // row with its parent contact name — one row per phone number
+        // (contacts without phones don't appear). For agent / automation
+        // use this is the table you actually want; the bare
+        // /contacts table only has names and photos.
+        //
+        // Column names: raw data1/data2/data3 are the canonical storage
+        // names and accepted on every Android version. `number` / `type`
+        // / `label` are aliases that some OEM builds reject; we re-label
+        // them at projection time using SQL `AS`. Phone.NUMBER = data1,
+        // Phone.TYPE = data2, Phone.LABEL = data3.
         return query("com.android.contacts",
-                Uri.parse("content://com.android.contacts/contacts"),
-                new String[] { "_id", "display_name", "photo_uri",
-                               "last_time_contacted", "starred" },
+                Uri.parse("content://com.android.contacts/data/phones"),
+                new String[] {
+                        "contact_id",
+                        "display_name",
+                        "data1",        // Phone.NUMBER
+                        "data2",        // Phone.TYPE (1=home, 2=mobile, 3=work, …)
+                        "data3",        // Phone.LABEL (custom label when type=0)
+                        "starred",
+                },
                 null, null, "display_name COLLATE LOCALIZED", limit);
     }
 
