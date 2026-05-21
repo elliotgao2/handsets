@@ -84,6 +84,9 @@ Usage: hs [--host HOST] [--port PORT] <verb> [args]
                                                          upcoming events
   hs notif    [PKG] [--history] [--limit N] [--json]    active notification tray
                                                          (or recent history)
+  hs clip                            read primary clipboard text
+  hs clip  TEXT                      write TEXT to primary clipboard
+  hs clip  --watch [--interval MS]   stream clipboard changes (one per line)
   hs open PKG | PKG/.Cls             start activity
   hs close PKG                       force-stop
   hs install APK [APK ...]           streamed PackageInstaller session
@@ -167,6 +170,7 @@ enum Cmd {
     Contacts { limit: u32, json: bool },
     Calendar { from_ms: Option<i64>, to_ms: Option<i64>, days: Option<i64>, limit: u32, json: bool },
     Notif { pkg: Option<String>, history: bool, limit: u32, json: bool },
+    Clip { text: Option<String>, watch: bool, interval_ms: u64 },
 }
 
 // SMS type codes — Android Telephony.TextBasedSmsColumns.
@@ -560,6 +564,31 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             }
             Cmd::Contacts { limit, json }
         }
+        // ─── Clipboard ────────────────────────────────────────────────
+        Some((&"clip", rest)) => {
+            let mut watch = false;
+            let mut interval_ms = 500_u64;
+            let mut positional: Vec<&str> = Vec::new();
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i] {
+                    "--watch" => watch = true,
+                    "--interval" => {
+                        i += 1;
+                        interval_ms = rest.get(i).ok_or("--interval needs MS")?
+                            .parse().map_err(|_| "bad --interval".to_string())?;
+                    }
+                    other => positional.push(other),
+                }
+                i += 1;
+            }
+            let text = if positional.is_empty() { None } else { Some(positional.join(" ")) };
+            if watch && text.is_some() {
+                return Err("clip --watch is read-only; can't combine with TEXT".into());
+            }
+            Cmd::Clip { text, watch, interval_ms }
+        }
+
         Some((&"notif", rest)) => {
             let mut limit = 50_u32;
             let mut json = false;
@@ -739,6 +768,43 @@ fn run(opts: &Opts) -> io::Result<()> {
                 &[provider::TypeMap { column: "type", map: PHONE_TYPES }],
                 &[("data1", "number"), ("data2", "type"), ("data3", "label")])
         }
+        Cmd::Clip { text, watch, interval_ms } => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            if *watch {
+                let wire = format!("clip_watch interval_ms={interval_ms}");
+                conn.send_cmd(&wire)?;
+                let mut out = io::stdout().lock();
+                loop {
+                    let frame = conn.read_frame()?;
+                    if frame.is_empty() { break; }
+                    if frame.starts_with(b"ERR:") {
+                        return Err(io::Error::other(
+                            String::from_utf8_lossy(&frame).into_owned()));
+                    }
+                    out.write_all(&frame)?;
+                    out.write_all(b"\n")?;
+                    out.flush()?;
+                }
+                Ok(())
+            } else if let Some(t) = text {
+                let body = conn.call(&format!("clip_set {t}"))?;
+                if body.starts_with(b"ERR:") {
+                    return Err(io::Error::other(
+                        String::from_utf8_lossy(&body).into_owned()));
+                }
+                Ok(())
+            } else {
+                let body = conn.call("clip_get")?;
+                if body.starts_with(b"ERR:") {
+                    return Err(io::Error::other(
+                        String::from_utf8_lossy(&body).into_owned()));
+                }
+                let mut out = io::stdout().lock();
+                out.write_all(&body)?;
+                if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
+                out.flush()
+            }
+        }
         Cmd::Notif { pkg, history, limit, json } => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let mut wire = format!("notifications limit={limit}");
@@ -822,6 +888,7 @@ fn run(opts: &Opts) -> io::Result<()> {
                 | Cmd::Contacts { .. }
                 | Cmd::Calendar { .. }
                 | Cmd::Notif { .. }
+                | Cmd::Clip { .. }
                 | Cmd::Ui { .. } => unreachable!(),
             };
             let body = conn.call(&wire)?;

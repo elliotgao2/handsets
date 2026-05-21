@@ -25,6 +25,7 @@ public final class Server {
         public Manifest manifest;
         public Providers providers;
         public Notifications notifs;
+        public Clipboard clip;
         public Am am;
         public Props props;
         public Dumpsys dumpsys;
@@ -80,7 +81,11 @@ public final class Server {
                 }
                 byte[] buf = new byte[len];
                 in.readFully(buf);
-                String cmd = new String(buf, StandardCharsets.US_ASCII).trim();
+                // UTF-8 (was US_ASCII): keeps backward-compat for the
+                // all-ASCII verb syntax and lets `clip_set <CJK>` /
+                // `text <CJK>` / `node_set_text value="<CJK>"` round-trip
+                // properly.
+                String cmd = new String(buf, StandardCharsets.UTF_8).trim();
 
                 byte[] resp;
                 String head = cmd;
@@ -252,6 +257,15 @@ public final class Server {
                     case "notifications":
                         resp = runNotifications(cmd);
                         break;
+                    case "clip_get":
+                        resp = h.clip.get();
+                        break;
+                    case "clip_set":
+                        resp = h.clip.set(afterHead(cmd));
+                        break;
+                    case "clip_watch":
+                        runClipWatch(cmd, out);
+                        continue;
                     case "quit":
                         writeFrame(out, "bye".getBytes(StandardCharsets.UTF_8));
                         running.set(false);
@@ -965,6 +979,11 @@ public final class Server {
         int limit  = (int) longArg(cmd, "limit", 50);
         boolean history = longArg(cmd, "history", 0) != 0;
         return h.notifs.dump(pkg, limit, history);
+    }
+
+    private void runClipWatch(String cmd, java.io.DataOutputStream out) {
+        long interval = longArg(cmd, "interval_ms", 500);
+        h.clip.watch(out, interval);
     }
 
     // ---------- key=value arg helpers ----------

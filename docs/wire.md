@@ -134,6 +134,14 @@ contacts  [limit=N]                            content://com.android.contacts/co
 calendar  [from=MS] [to=MS] [limit=N]          content://com.android.calendar/instances/when/<from>/<to>
 ```
 
+## Clipboard
+
+```
+clip_get                                       → current primary clip text
+clip_set <text>                                → "ok" | "ERR:…"  (everything after the space is the literal text)
+clip_watch [interval_ms=500]                   → chunked stream, one frame per clipboard change
+```
+
 ## Activities
 
 ```
