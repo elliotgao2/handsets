@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Silence Node.js 20 deprecation warnings emitted by checkout / setup-java /
+# setup-android / upload-artifact / download-artifact. Forces all JS actions
+# to use the Node 24 runtime that GitHub will default to mid-2026.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   # ─── Build the on-device daemon JAR once, share across all CLI builds ───
   build-jar:
@@ -47,10 +53,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos-arm64,   os: macos-14,       target: aarch64-apple-darwin,         viewer: true,  ext: tar.gz }
-          - { name: macos-x86_64,  os: macos-13,       target: x86_64-apple-darwin,          viewer: true,  ext: tar.gz }
-          - { name: linux-x86_64,  os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,     viewer: false, ext: tar.gz }
-          - { name: linux-aarch64, os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,    viewer: false, ext: tar.gz, cross: true }
+          # Both macOS targets cross-build from the Apple Silicon runner —
+          # macos-13 (Intel) is notably slower and the x86_64 binary cross-
+          # builds cleanly via Rust's standard target install.
+          - { name: macos-arm64,   os: macos-14,       target: aarch64-apple-darwin,         viewer: true  }
+          - { name: macos-x86_64,  os: macos-14,       target: x86_64-apple-darwin,          viewer: true  }
+          - { name: linux-x86_64,  os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,     viewer: false }
+          - { name: linux-aarch64, os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,    viewer: false, cross: true }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +68,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry + build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          workspaces: |
+            handsets-cli
+            handsets-viewer
 
       - name: Install aarch64 cross linker (Linux only)
         if: matrix.cross
