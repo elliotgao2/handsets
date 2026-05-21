@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" fill="none">
+  <!-- Wordmark: lowercase serif, oversized, slightly tracked open. -->
+  <text x="50" y="135"
+        font-family="'Hoefler Text', 'Big Caslon', Garamond, Georgia, 'Times New Roman', serif"
+        font-size="132"
+        font-weight="300"
+        letter-spacing="2"
+        fill="#101010">handsets</text>
+
+  <!-- Single hairline rule under the wordmark, the Reitz tell. -->
+  <line x1="52" y1="158" x2="708" y2="158"
+        stroke="#101010" stroke-width="1.25" stroke-linecap="square"/>
+
+  <!-- Italic tagline, smaller, in a slightly cooler grey for hierarchy. -->
+  <text x="54" y="190"
+        font-family="'Hoefler Text', Garamond, Georgia, serif"
+        font-size="20"
+        font-style="italic"
+        letter-spacing="0.5"
+        fill="#3a3a3a">A high-performance Android control CLI, built for agents.</text>
+</svg>

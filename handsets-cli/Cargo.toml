@@ -1,0 +1,22 @@
+[package]
+name = "hs"
+version = "0.1.0"
+edition = "2021"
+description = "Handsets — high-performance Android control CLI, built for agents"
+
+[[bin]]
+name = "hs"
+path = "src/main.rs"
+
+[dependencies]
+# No third-party deps — the CLI is pure std. The live screen mirror moved
+# to the handsets-viewer crate; `hs mirror` just spawns that binary.
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false

@@ -1,0 +1,33 @@
+# ── Java daemon build artifacts ──────────────────────────────
+build/
+*.class
+*.dex
+
+# ── Rust crates ──────────────────────────────────────────────
+target/
+
+# ── Python wrapper ──────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── macOS ───────────────────────────────────────────────────
+.DS_Store
+
+# ── Editor / IDE ────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+.omc/
+
+# ── Local / scratch ─────────────────────────────────────────
+/tmp/
+*.log
+*.tmp
+*.swp
+*.bak
+
+# ── Throwaway test artifacts at the repo root ───────────────
+/screenshot.png
+/1.jpg
+/build.log

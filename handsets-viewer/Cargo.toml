@@ -1,0 +1,31 @@
+[package]
+name = "handsets-viewer"
+version = "0.1.0"
+edition = "2021"
+description = "Live device-screen viewer for the handsets daemon"
+
+[[bin]]
+name = "handsets-viewer"
+path = "src/main.rs"
+
+[dependencies]
+winit = "0.30"
+zune-jpeg = "0.4"
+raw-window-handle = "0.6"
+
+# macOS path: direct CAMetalLayer presentation + VideoToolbox hardware H.264
+# decode (zero-copy IOSurface → MTLTexture → drawable blit). VT FFI is
+# hand-rolled in src/videotoolbox_decoder.rs to avoid extra crates.
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = "0.29"
+core-graphics-types = "0.1"
+objc = "0.2"
+
+[profile.release]
+opt-level = "z"          # optimise for size (still inlines hot loops)
+lto = "fat"
+codegen-units = 1
+panic = "abort"          # drop unwind tables (~10–20% binary size)
+strip = "symbols"
+debug = false
+overflow-checks = false
