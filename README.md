@@ -153,6 +153,10 @@ hs calls    [in|out|missed|all] [--limit N] [--json]   call log
 hs contacts                       [--limit N] [--json] contact list
 hs calendar [--days N | --from MS --to MS] [--limit N] [--json]
                                                        next 7 days of events
+hs notif    [PKG] [--history] [--limit N] [--json]     active notification tray
+hs clip                              read primary clipboard text
+hs clip  TEXT                        write TEXT to primary clipboard
+hs clip  --watch [--interval MS]     stream clipboard changes (one per line)
 ```
 
 The four user-data verbs go directly through `IContentProvider` via
