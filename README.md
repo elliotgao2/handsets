@@ -8,6 +8,30 @@
 
 ---
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
+```
+
+macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.0 …`. Then
+`hs use` against a connected device.
+
+<details>
+<summary>Build from source</summary>
+
+```bash
+git clone https://github.com/elliotgao2/handsets && cd handsets
+./build.sh                                                          # daemon jar
+cargo build --release --manifest-path handsets-cli/Cargo.toml       # `hs`
+cargo build --release --manifest-path handsets-viewer/Cargo.toml    # `hs see` GUI (macOS)
+ln -s "$PWD/handsets-cli/target/release/hs" /usr/local/bin/hs
+```
+
+</details>
+
+## At a glance
+
 ```bash
 $ hs                                           # list devices
 $ hs use                                       # connect, start daemon, mirror state
@@ -41,52 +65,6 @@ or LLM can actually act on, usually **10–100× less text**:
 
 Four columns: **center coords / behaviour tags / class+id / text or desc**.
 Drop into an LLM, get back coords, hand them to `hs tap X Y` — done.
-
-## vs `uiautomator2`, Appium
-
-Both wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
-and pay for the framework. Handsets runs a hand-rolled daemon directly
-under `app_process` and talks to binders by reflection, so the wire is
-tighter and the dump format is built for agents rather than reporters.
-
-|  | **Handsets** | uiautomator2 | Appium |
-|---|---|---|---|
-| Wire | TCP long socket, length-prefixed binary | HTTP/JSON via `atx-agent` | WebDriver over HTTP |
-| On-device install | push 1 jar (~few hundred KB) | 2 apks + `atx-agent` | driver apk + Node server |
-| Daemon start | `< 200 ms` via `app_process`, no UIAutomator framework | UIAutomator instrumentation each session | UIAutomator + WebDriver bridge |
-| State reads | µs from host-mirrored file (`hs info` / `hs show`) | ms per round-trip | ms+ per round-trip |
-| UI dump for agents | `hs ui -i` flat, **~10× fewer tokens** | full XML | full XML |
-| Selector | CSS-like `Tag[attr=val][attr~=sub]:flag` | `d(text=…, className=…)` chained | Selenium strategies |
-| Bound to | any language via subprocess | Python only | multi-lang via WebDriver |
-| Best at | LLM agents, ad-hoc scripts, high-freq small ops | Python device scraping | cross-platform CI suites |
-
-Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE
-integrations, pytest runners, HTML reporting. Handsets is a lean CLI.
-For pytest-style UI regression with reports they're still the smoother
-path. Handsets is built for the case where you only care about
-single-call latency and shell composition.
-
-## Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
-```
-
-macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.0 …`. Then
-`hs use` against a connected device.
-
-<details>
-<summary>Build from source</summary>
-
-```bash
-git clone https://github.com/elliotgao2/handsets && cd handsets
-./build.sh                                                          # daemon jar
-cargo build --release --manifest-path handsets-cli/Cargo.toml       # `hs`
-cargo build --release --manifest-path handsets-viewer/Cargo.toml    # `hs see` GUI (macOS)
-ln -s "$PWD/handsets-cli/target/release/hs" /usr/local/bin/hs
-```
-
-</details>
 
 ## Verbs
 
@@ -161,6 +139,30 @@ hs shell                            interactive REPL (history, built-ins,
                                       unknown verbs fall through to /system/bin/sh)
 hs do     [WIRE]                    same REPL, or one-shot raw wire
 ```
+
+## vs `uiautomator2`, Appium
+
+Both wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
+and pay for the framework. Handsets runs a hand-rolled daemon directly
+under `app_process` and talks to binders by reflection, so the wire is
+tighter and the dump format is built for agents rather than reporters.
+
+|  | **Handsets** | uiautomator2 | Appium |
+|---|---|---|---|
+| Wire | TCP long socket, length-prefixed binary | HTTP/JSON via `atx-agent` | WebDriver over HTTP |
+| On-device install | push 1 jar (~few hundred KB) | 2 apks + `atx-agent` | driver apk + Node server |
+| Daemon start | `< 200 ms` via `app_process`, no UIAutomator framework | UIAutomator instrumentation each session | UIAutomator + WebDriver bridge |
+| State reads | µs from host-mirrored file (`hs info` / `hs show`) | ms per round-trip | ms+ per round-trip |
+| UI dump for agents | `hs ui -i` flat, **~10× fewer tokens** | full XML | full XML |
+| Selector | CSS-like `Tag[attr=val][attr~=sub]:flag` | `d(text=…, className=…)` chained | Selenium strategies |
+| Bound to | any language via subprocess | Python only | multi-lang via WebDriver |
+| Best at | LLM agents, ad-hoc scripts, high-freq small ops | Python device scraping | cross-platform CI suites |
+
+Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE
+integrations, pytest runners, HTML reporting. Handsets is a lean CLI.
+For pytest-style UI regression with reports they're still the smoother
+path. Handsets is built for the case where you only care about
+single-call latency and shell composition.
 
 ## Docs
 
