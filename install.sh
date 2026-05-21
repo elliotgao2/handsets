@@ -28,9 +28,7 @@ uname_m=$(uname -m)
 case "$uname_s" in
   Darwin) OS=macos ;;
   Linux)  OS=linux ;;
-  MINGW*|MSYS*|CYGWIN*)
-    die "Windows detected — use PowerShell: iwr -useb https://raw.githubusercontent.com/$REPO/main/install.ps1 | iex" ;;
-  *) die "unsupported OS: $uname_s" ;;
+  *) die "unsupported OS: $uname_s (macOS and Linux only)" ;;
 esac
 
 case "$uname_m" in

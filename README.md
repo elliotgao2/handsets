@@ -24,17 +24,11 @@ EOF
 ## Install
 
 ```bash
-# macOS · Linux
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-```powershell
-# Windows
-iwr -useb https://raw.githubusercontent.com/elliotgao2/handsets/main/install.ps1 | iex
-```
-
-Pin a version with `HANDSETS_VERSION=v0.1.0 …` (env var honoured by both
-installers). Then `hs use` against a connected device.
+macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.0 …`. Then
+`hs use` against a connected device.
 
 <details>
 <summary>Build from source</summary>

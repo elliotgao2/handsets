@@ -51,7 +51,6 @@ jobs:
           - { name: macos-x86_64,  os: macos-13,       target: x86_64-apple-darwin,          viewer: true,  ext: tar.gz }
           - { name: linux-x86_64,  os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,     viewer: false, ext: tar.gz }
           - { name: linux-aarch64, os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,    viewer: false, ext: tar.gz, cross: true }
-          - { name: windows-x86_64, os: windows-latest, target: x86_64-pc-windows-msvc,      viewer: false, ext: zip }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -99,19 +98,16 @@ jobs:
           set -euo pipefail
           stage="dist/handsets"
           mkdir -p "$stage"
-          bin_ext=""
-          [[ "${{ matrix.target }}" == *windows* ]] && bin_ext=".exe"
-          cp "handsets-cli/target/${{ matrix.target }}/release/hs${bin_ext}" "$stage/"
+          cp "handsets-cli/target/${{ matrix.target }}/release/hs" "$stage/"
           if [[ "${{ matrix.viewer }}" == "true" ]]; then
-            cp "handsets-viewer/target/${{ matrix.target }}/release/handsets-viewer${bin_ext}" "$stage/"
+            cp "handsets-viewer/target/${{ matrix.target }}/release/handsets-viewer" "$stage/"
           fi
           cp build/hs.jar "$stage/hs.jar"
           [[ -f LICENSE ]] && cp LICENSE "$stage/" || true
           cp README.md "$stage/"
           echo "${{ steps.ver.outputs.tag }}" > "$stage/VERSION"
 
-      - name: Pack archive (tar.gz)
-        if: matrix.ext == 'tar.gz'
+      - name: Pack archive
         shell: bash
         run: |
           set -euo pipefail
@@ -123,24 +119,13 @@ jobs:
             shasum -a 256 "$asset" > "$asset.sha256"
           fi
 
-      - name: Pack archive (zip)
-        if: matrix.ext == 'zip'
-        shell: pwsh
-        run: |
-          $asset = "handsets-${{ matrix.name }}.zip"
-          Compress-Archive -Path dist/handsets -DestinationPath $asset -Force
-          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
-          "$hash  $asset" | Out-File -Encoding ascii "$asset.sha256"
-
       - uses: actions/upload-artifact@v4
         with:
           name: handsets-${{ matrix.name }}
           path: |
             handsets-${{ matrix.name }}.tar.gz
             handsets-${{ matrix.name }}.tar.gz.sha256
-            handsets-${{ matrix.name }}.zip
-            handsets-${{ matrix.name }}.zip.sha256
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   # ─── Publish the GitHub release (tag pushes only) ──────────────────────
   release:
