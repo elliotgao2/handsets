@@ -13,6 +13,7 @@ $ hs                                           # list devices
 $ hs use                                       # connect, start daemon, mirror state
 $ hs info                                      # neofetch-style snapshot (2 ms)
 $ hs see x.jpg                                 # screenshot — 100× faster than adb
+$ hs ui -i                                     # flat list of tappable nodes (LLM-friendly)
 $ hs find 'TextView[text~=Login]'              # CSS-like selector over the live tree
 $ hs open com.foo/.MainActivity && hs wait com.foo
 $ hs type "EditText" "user@example.com"        # ACTION_SET_TEXT, no virtual keyboard
@@ -20,6 +21,50 @@ $ hs do <<'EOF'                                # persistent shell — many cmds,
   tap_and_dump x=540 y=1500 idle_ms=200
 EOF
 ```
+
+## `hs ui -i` — the agent-friendly UI dump
+
+`uiautomator2`'s `d.dump_hierarchy()` and Appium's `driver.page_source`
+hand you the full XML — hundreds of KB per screen, mostly layout noise.
+`hs ui -i` filters and flattens the same tree to only the nodes a human
+or LLM can actually act on, usually **10–100× less text**:
+
+```
+@(54,160)    click             ImageButton                desc="Back"
+@(540,360)                     TextView    #title         "Sign in to your account"
+@(540,540)   click             EditText    #email         desc="Email"
+@(540,640)   click,password    EditText    #password      desc="Password"
+@(540,760)   check             CheckBox                   "Remember me"
+@(540,860)   click             Button      #continue      "Continue"
+@(540,960)   click             TextView                   "Forgot password?"
+```
+
+Four columns: **center coords / behaviour tags / class+id / text or desc**.
+Drop into an LLM, get back coords, hand them to `hs tap X Y` — done.
+
+## vs `uiautomator2`, Appium
+
+Both wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
+and pay for the framework. Handsets runs a hand-rolled daemon directly
+under `app_process` and talks to binders by reflection, so the wire is
+tighter and the dump format is built for agents rather than reporters.
+
+|  | **Handsets** | uiautomator2 | Appium |
+|---|---|---|---|
+| Wire | TCP long socket, length-prefixed binary | HTTP/JSON via `atx-agent` | WebDriver over HTTP |
+| On-device install | push 1 jar (~few hundred KB) | 2 apks + `atx-agent` | driver apk + Node server |
+| Daemon start | `< 200 ms` via `app_process`, no UIAutomator framework | UIAutomator instrumentation each session | UIAutomator + WebDriver bridge |
+| State reads | µs from host-mirrored file (`hs info` / `hs show`) | ms per round-trip | ms+ per round-trip |
+| UI dump for agents | `hs ui -i` flat, **~10× fewer tokens** | full XML | full XML |
+| Selector | CSS-like `Tag[attr=val][attr~=sub]:flag` | `d(text=…, className=…)` chained | Selenium strategies |
+| Bound to | any language via subprocess | Python only | multi-lang via WebDriver |
+| Best at | LLM agents, ad-hoc scripts, high-freq small ops | Python device scraping | cross-platform CI suites |
+
+Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE
+integrations, pytest runners, HTML reporting. Handsets is a lean CLI.
+For pytest-style UI regression with reports they're still the smoother
+path. Handsets is built for the case where you only care about
+single-call latency and shell composition.
 
 ## Install
 
@@ -59,8 +104,9 @@ hs drop  [SERIAL] [--keep-jar]      disconnect
 hs info                             neofetch-style snapshot (2 ms, from local cache)
 hs see                              live viewer (Metal + VideoToolbox H.264)
 hs see   foo.{jpg,png,xml,json}     capture, format by extension
-hs ui    [-i|--json|--xml] [--all]  UI tree dump — `-i` filters to readable
-                                      interactive elements only (flat columnar)
+hs ui    [-i|--json|--xml] [--all]  UI tree dump — `-i` returns a flat,
+                                      LLM-friendly table of tappable nodes
+                                      (coords + tags + class + label)
 hs find  SELECTOR                   CSS-like:  Tag[attr=val]:flag, comma = OR
 hs show  [top | PKG]                device state | top activity | package info
 hs apps  [--3rd]                    installed packages
