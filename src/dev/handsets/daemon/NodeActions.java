@@ -55,6 +55,56 @@ final class NodeActions {
         return perform(selectorStr, action, null, "scroll_" + dir);
     }
 
+    /**
+     * Press the IME action button on the focused EditText (or the one
+     * matched by {@code selectorStr}, if non-null). Routes through
+     * {@code AccessibilityAction.ACTION_IME_ENTER}, which makes the
+     * framework fire the field's configured editor action — Search /
+     * Go / Send / Done / Next / Previous depending on what the app
+     * declared via {@code android:imeOptions}.
+     */
+    byte[] imeAction(String selectorStr) {
+        AccessibilityNodeInfo target;
+        if (selectorStr == null || selectorStr.isEmpty()) {
+            target = findInputFocus();
+            if (target == null) return err("no-focused-input");
+        } else {
+            Selector sel;
+            try { sel = Selector.parse(selectorStr); }
+            catch (IllegalArgumentException e) { return err("bad-selector:" + e.getMessage()); }
+            target = find(sel);
+            if (target == null) return err("not-found:" + sel);
+        }
+        int actionId;
+        try {
+            actionId = AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId();
+        } catch (Throwable t) {
+            // ACTION_IME_ENTER is API 30+. Older devices need to send
+            // a KEYCODE_ENTER via the input service instead.
+            return err("ime-enter-unsupported:" + t.getClass().getSimpleName());
+        }
+        boolean ok;
+        try { ok = target.performAction(actionId); }
+        catch (Throwable t) { return err("submit-threw:" + t.getMessage()); }
+        return ok ? ok("ok submit") : err("submit-rejected");
+    }
+
+    /** Walk every window's tree looking for the node that holds input focus
+     *  (an EditText the IME is bound to). Falls back to the active window. */
+    private AccessibilityNodeInfo findInputFocus() {
+        List<AccessibilityWindowInfo> windows = ua.getWindows();
+        if (windows != null) {
+            for (AccessibilityWindowInfo w : windows) {
+                AccessibilityNodeInfo root = w.getRoot();
+                if (root == null) continue;
+                AccessibilityNodeInfo f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+                if (f != null) return f;
+            }
+        }
+        AccessibilityNodeInfo root = ua.getRootInActiveWindow();
+        return root == null ? null : root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+    }
+
     // ---------- selector-based finder (also reusable by wait_for_text) ----------
 
     Selector parseSelector(String s) { return Selector.parse(s); }

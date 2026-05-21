@@ -12,11 +12,7 @@ use std::process::Command;
 use crate::daemon;
 
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct Args {
-    // Retained for parser compatibility; the GUI sizes itself.
-    pub cols: Option<u32>,
-    pub rows: Option<u32>,
-}
+pub(crate) struct Args;
 
 pub(crate) fn run(host: &str, port: u16, _args: Args) -> io::Result<()> {
     let viewer = daemon::locate_viewer().ok_or_else(|| io::Error::new(

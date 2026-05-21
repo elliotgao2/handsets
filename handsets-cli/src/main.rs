@@ -6,7 +6,7 @@
 // One-shot calls open a fresh socket each invocation. The `bench` subcommand
 // reuses a persistent socket to measure true wire-level latency.
 
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, Read, Write};
 use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -87,6 +87,8 @@ Usage: hs [--host HOST] [--port PORT] <verb> [args]
   hs go back | home | recents | …    key events (case-insensitive)
   hs swipe left|right|up|down [DUR_MS]   80% screen swipe (daemon picks coords)
   hs swipe X1 Y1 X2 Y2 [DUR_MS]          raw-coordinate swipe
+  hs submit [SELECTOR]                   press the IME submit/search/go/done
+                                           key on the focused (or matched) field
 
   hs wait idle [Nms|Ns]              wait for the UI to settle
   hs wait \"Login\"                    wait for that text to appear
@@ -127,15 +129,11 @@ struct Opts {
 #[derive(Debug)]
 enum Cmd {
     Ping,
-    Dump { xml: bool },
-    DumpActive { xml: bool },
     Query(String),
-    Screenshot(ShotOpts),
     Input(String),       // pre-built wire command, e.g. "tap x=720 y=1500"
     TapText(String),     // dump→find→tap by text/content-description
     Snapshot,            // dump→list clickable labels in reading order
     Screen,              // dump→render layout as a text grid (aspect-fit)
-    Mirror(mirror::Args),// launch GUI viewer (handsets-viewer)
     Quit,
     Bench { n: u32 },
     Adb(adb::Cmd),       // wire-level subcommands routed via the daemon socket
@@ -152,36 +150,11 @@ enum Cmd {
     Devices,
     StateDaemon,
     Shell,
+    Submit(Option<String>),              // IME action on focused field, or matched selector
 }
 
 #[derive(Debug, Clone, Copy)]
 enum UiFormat { Human, Interactive, Json, Xml }
-
-#[derive(Debug, Default, Clone)]
-struct ShotOpts {
-    size: Option<u32>,
-    quality: Option<u32>,
-    format: Option<String>,
-    native: bool,
-}
-
-impl ShotOpts {
-    fn wire(&self) -> String {
-        let mut s = String::from("screenshot");
-        if self.native {
-            s.push_str(" max=1");
-        } else if let Some(sz) = self.size {
-            s.push_str(&format!(" size={sz}"));
-        }
-        if let Some(q) = self.quality {
-            s.push_str(&format!(" q={q}"));
-        }
-        if let Some(f) = &self.format {
-            s.push_str(&format!(" fmt={f}"));
-        }
-        s
-    }
-}
 
 fn parse_use(rest: &[&str]) -> Result<daemon::ConnectOpts, String> {
     let mut opts = daemon::ConnectOpts { serial: None, port: None };
@@ -272,52 +245,6 @@ fn suggest(old: &str) -> String {
     match hint {
         Some(h) => format!("unknown command: {old}  — try `{h}`"),
         None    => format!("unknown command: {old}"),
-    }
-}
-
-fn parse_input_subcommand(rest: &[&str]) -> Result<String, String> {
-    let (sub, rest) = rest.split_first().ok_or("input needs a subcommand")?;
-    match *sub {
-        "tap" => {
-            if rest.len() != 2 {
-                return Err("input tap takes: X Y".into());
-            }
-            let x: i32 = rest[0].parse().map_err(|_| "bad tap X")?;
-            let y: i32 = rest[1].parse().map_err(|_| "bad tap Y")?;
-            Ok(format!("tap x={x} y={y}"))
-        }
-        "swipe" => {
-            if rest.len() != 4 && rest.len() != 5 {
-                return Err("input swipe takes: X1 Y1 X2 Y2 [DUR_MS]".into());
-            }
-            let x1: i32 = rest[0].parse().map_err(|_| "bad swipe X1")?;
-            let y1: i32 = rest[1].parse().map_err(|_| "bad swipe Y1")?;
-            let x2: i32 = rest[2].parse().map_err(|_| "bad swipe X2")?;
-            let y2: i32 = rest[3].parse().map_err(|_| "bad swipe Y2")?;
-            let dur: i32 = if rest.len() == 5 {
-                rest[4].parse().map_err(|_| "bad swipe DUR_MS")?
-            } else {
-                300
-            };
-            Ok(format!("swipe x1={x1} y1={y1} x2={x2} y2={y2} dur={dur}"))
-        }
-        "key" => {
-            if rest.len() != 1 {
-                return Err("input key takes: NAME (or code=N)".into());
-            }
-            // Pass-through: "input key BACK" → "key BACK"; "input key code=4" → "key code=4".
-            Ok(format!("key {}", rest[0]))
-        }
-        "text" => {
-            if rest.is_empty() {
-                return Err("input text needs STRING".into());
-            }
-            // Re-join all positional args with single spaces, preserving the
-            // string content. The daemon takes everything after "text " as the
-            // typed text verbatim.
-            Ok(format!("text {}", rest.join(" ")))
-        }
-        other => Err(format!("unknown input subcommand: {other}")),
     }
 }
 
@@ -545,6 +472,13 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         Some((&"events", _)) => Cmd::Adb(adb::Cmd::Monitor),
         Some((&"info", _))   => Cmd::Info,
 
+        // ─── Submit (IME action button) ──────────────────────────────
+        Some((&"submit", rest)) => Cmd::Submit(if rest.is_empty() {
+            None
+        } else {
+            Some(rest.join(" "))
+        }),
+
         // ─── Shell + raw wire ────────────────────────────────────────
         // `shell` and `do` are synonyms: shell is the natural REPL verb,
         // do <wire> is a one-shot raw call.
@@ -597,7 +531,6 @@ fn run(opts: &Opts) -> io::Result<()> {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             screen::run(&mut conn)
         }
-        Cmd::Mirror(args) => mirror::run(&opts.host, opts.port, *args),
         Cmd::Adb(sub) => adb::run(&opts.host, opts.port, sub),
         Cmd::Connect(o) => {
             let port = daemon::connect(o)?;
@@ -608,8 +541,6 @@ fn run(opts: &Opts) -> io::Result<()> {
         Cmd::Devices => print_devices(),
         Cmd::StateDaemon => state_cache::run_daemon(&opts.host, opts.port),
         Cmd::Shell => shell::run(&opts.host, opts.port),
-        Cmd::Dump { xml: true } => fetch_then_xml(&opts.host, opts.port, "dump"),
-        Cmd::DumpActive { xml: true } => fetch_then_xml(&opts.host, opts.port, "dump_active"),
         Cmd::Query(sel) => run_query(&opts.host, opts.port, sel),
         Cmd::See(dest) => run_see(&opts.host, opts.port, dest.as_deref()),
         Cmd::Wait(spec) => run_wait(&opts.host, opts.port, spec),
@@ -631,6 +562,21 @@ fn run(opts: &Opts) -> io::Result<()> {
             }
             Ok(())
         }
+        Cmd::Submit(sel) => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let wire = match sel {
+                Some(s) => format!("submit {s}"),
+                None => "submit".to_string(),
+            };
+            let body = conn.call(&wire)?;
+            if body.starts_with(b"ERR:") {
+                return Err(io::Error::other(String::from_utf8_lossy(&body).into_owned()));
+            }
+            let mut out = io::stdout().lock();
+            out.write_all(&body)?;
+            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
+            out.flush()
+        }
         Cmd::TypeInto { selector, text } => {
             // Translate to a daemon wire command: node_set_text <selector> value=TEXT.
             let mut conn = Conn::connect(&opts.host, opts.port)?;
@@ -648,16 +594,12 @@ fn run(opts: &Opts) -> io::Result<()> {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire: String = match &opts.cmd {
                 Cmd::Ping => "ping".into(),
-                Cmd::Dump { .. } => "dump".into(),
-                Cmd::DumpActive { .. } => "dump_active".into(),
                 Cmd::Quit => "quit".into(),
-                Cmd::Screenshot(s) => s.wire(),
                 Cmd::Input(wire) => wire.clone(),
                 Cmd::Bench { .. }
                 | Cmd::TapText(_)
                 | Cmd::Snapshot
                 | Cmd::Screen
-                | Cmd::Mirror(_)
                 | Cmd::Adb(_)
                 | Cmd::Connect(_)
                 | Cmd::Disconnect(_)
@@ -672,6 +614,7 @@ fn run(opts: &Opts) -> io::Result<()> {
                 | Cmd::Info
                 | Cmd::TypeInto { .. }
                 | Cmd::SettingsListAll
+                | Cmd::Submit(_)
                 | Cmd::Ui { .. } => unreachable!(),
             };
             let body = conn.call(&wire)?;
@@ -716,29 +659,6 @@ fn run_ui(host: &str, port: u16, format: UiFormat, all: bool) -> io::Result<()> 
         }
     }
     out.flush()
-}
-
-/// Fetch the daemon's JSON dump and transform it to uiautomator-style XML
-/// client-side. No daemon-side change required.
-fn fetch_then_xml(host: &str, port: u16, wire: &str) -> io::Result<()> {
-    let mut conn = Conn::connect(host, port)?;
-    let body = conn.call(wire)?;
-    let text = std::str::from_utf8(&body)
-        .map_err(|e| io::Error::other(format!("dump not utf-8: {e}")))?;
-    let json = json::parse(text)
-        .map_err(|e| io::Error::other(format!("dump not json: {e}")))?;
-    let rotation = read_rotation(&json);
-    let xml = xml_dump::render(&json, rotation);
-    let mut out = io::stdout().lock();
-    out.write_all(xml.as_bytes())?;
-    out.flush()
-}
-
-fn read_rotation(v: &json::Value) -> i64 {
-    // Best-effort: the dump payload doesn't currently carry the device
-    // rotation; emit 0 so the resulting XML is uiautomator-shaped.
-    let _ = v;
-    0
 }
 
 /// `hs see [PATH]` — bare opens the viewer; otherwise extension picks
@@ -1082,8 +1002,7 @@ fn write_response(cmd: &Cmd, body: &[u8]) -> io::Result<()> {
     // Trailing newline only for text commands on a terminal — never for binary.
     let is_text = matches!(
         cmd,
-        Cmd::Ping | Cmd::Dump { .. } | Cmd::DumpActive { .. } | Cmd::Quit
-            | Cmd::Input(_) | Cmd::Bench { .. } | Cmd::Query(_)
+        Cmd::Ping | Cmd::Quit | Cmd::Input(_) | Cmd::Bench { .. } | Cmd::Query(_)
     );
     if is_text && !body.is_empty() && body[body.len() - 1] != b'\n' {
         out.write_all(b"\n")?;

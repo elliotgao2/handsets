@@ -258,19 +258,6 @@ pub(crate) fn bounds(node: &Value) -> Option<(i64, i64, i64, i64)> {
     None
 }
 
-/// BFS over the JSON tree calling `f` on every node. Stops early when `f`
-/// returns false.
-pub(crate) fn walk<F: FnMut(&Value) -> bool>(root: &Value, mut f: F) {
-    let mut stack = vec![root];
-    while let Some(n) = stack.pop() {
-        if !f(n) { return; }
-        if let Some(kids) = children(n) {
-            // iterate in document order
-            for c in kids.iter().rev() { stack.push(c); }
-        }
-    }
-}
-
 /// Find every node in `dump` that matches any of `selectors` (OR).
 ///
 /// `dump` may be the raw daemon payload — i.e. the outer envelope

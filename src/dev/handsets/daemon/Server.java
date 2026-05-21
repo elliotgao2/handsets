@@ -228,6 +228,9 @@ public final class Server {
                     case "node_focus":
                         resp = runNodeFocus(cmd);
                         break;
+                    case "submit":
+                        resp = runSubmit(cmd);
+                        break;
                     case "quit":
                         writeFrame(out, "bye".getBytes(StandardCharsets.UTF_8));
                         running.set(false);
@@ -896,6 +899,12 @@ public final class Server {
         String sel = afterHead(cmd);
         if (sel == null) return errBytes("node_focus-needs-selector");
         return h.nodes.focus(sel);
+    }
+
+    private byte[] runSubmit(String cmd) {
+        // `submit` with no args targets the focused EditText. A trailing
+        // selector overrides that — `submit text~=Email`.
+        return h.nodes.imeAction(afterHead(cmd));
     }
 
     // ---------- key=value arg helpers ----------

@@ -151,6 +151,8 @@ hs type  SELECTOR TEXT              ACTION_SET_TEXT — atomic, bypasses the IME
 hs go    back | home | recents | …  key events
 hs swipe left|right|up|down [DUR_MS]    80% screen swipe (daemon picks coords)
 hs swipe X1 Y1 X2 Y2 [DUR_MS]
+hs submit [SELECTOR]                press the IME submit / search / go / done
+                                      key on the focused (or matched) field
 ```
 
 ### Sync

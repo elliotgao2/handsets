@@ -96,6 +96,10 @@ node_long_click  <selector>
 node_set_text    <selector> value="STRING"     atomic ACTION_SET_TEXT
 node_scroll      <selector> [dir=forward|backward|up|down|left|right]
 node_focus       <selector>
+submit           [<selector>]                  ACTION_IME_ENTER on focused
+                                               EditText (or matched selector) —
+                                               fires the field's IME action
+                                               (Search / Go / Send / Done / …)
 ```
 
 ## Packages

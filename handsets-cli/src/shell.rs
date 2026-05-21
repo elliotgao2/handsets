@@ -16,7 +16,7 @@
 // ignored. `cat script.txt | hs shell` works as a fast scripted driver.
 
 use std::fs::OpenOptions;
-use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
 use crate::Conn;

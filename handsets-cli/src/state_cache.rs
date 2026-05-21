@@ -11,7 +11,7 @@
 //   ~/.handsets/state-<port>.pid     PID of the running watcher
 
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime};
