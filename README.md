@@ -45,11 +45,34 @@ ln -s "$PWD/handsets-cli/target/release/hs" /usr/local/bin/hs
 ## Quickstart
 
 ```bash
-hs use                              # auto-detects device, starts the daemon
-hs info                             # confirm — should print the device snapshot
-hs ui -i                            # see what's on screen, in LLM-friendly form
-hs tap "Continue"                   # text-lookup tap
-hs drop                             # tear down the daemon when done
+$ hs use                              # auto-detects device, starts the daemon
+daemon up on tcp:9008
+
+$ hs info                             # neofetch-style snapshot, 2 ms from local cache
+                Pixel 6 Pro
+                ───────────
+    \       /   OS        Android 15 — SDK 35
+     \ ___ /    Kernel    6.1.75-android14-11
+      /   \     Uptime    2d 4h 30m
+     | o o |    Display   1440 × 3120
+     |  _  |    CPU       8× arm64-v8a
+      \___/     Memory    5.2 / 12.0 GiB
+     |     |    Battery   78%  (screen on, charging)
+     |_____|    Top       com.android.launcher3/.HomeActivity
+      |   |     Daemon    hsd on tcp:9008
+
+$ hs ui -i                            # flat list of tappable nodes (LLM-friendly)
+@(540,540)   click             EditText    #email        desc="Email"
+@(540,640)   click,password    EditText    #password     desc="Password"
+@(540,860)   click             Button      #continue     "Continue"
+
+$ hs tap "Continue"                   # text-lookup tap
+tapped "Continue" cls=android.widget.Button flags=cef bounds=[180,810,900,910] at (540,860) → ok
+
+$ hs submit                           # press the IME action key (Send / Go / Search / Done)
+ok submit
+
+$ hs drop                             # tear down the daemon when done
 ```
 
 ## How it works
