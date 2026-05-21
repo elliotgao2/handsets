@@ -145,7 +145,21 @@ hs ui    [-i|--json|--xml] [--all]  UI tree dump — `-i` returns a flat,
 hs find  SELECTOR                   CSS-like:  Tag[attr=val]:flag, comma = OR
 hs show  [top | PKG]                device state | top activity | package info
 hs apps  [--3rd]                    installed packages
+hs links PKG                        deeplink URI templates declared by PKG —
+                                      parses AndroidManifest.xml directly,
+                                      so it sees everything `pm dump` does
+hs sms      [inbox|sent|all]   [--limit N] [--json]    recent SMS
+hs calls    [in|out|missed|all] [--limit N] [--json]   call log
+hs contacts                       [--limit N] [--json] contact list
+hs calendar [--days N | --from MS --to MS] [--limit N] [--json]
+                                                       next 7 days of events
 ```
+
+The four user-data verbs go directly through `IContentProvider` via
+`getContentProviderExternal` (the same hidden API path `cmd content`
+uses), so they don't need an installed app or `pm grant`. Output is a
+columnar table by default; `--json` re-emits a `[{col: val, …}, …]`
+array.
 
 Selector examples:
 

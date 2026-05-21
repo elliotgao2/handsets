@@ -110,8 +110,28 @@ pm_path   PKG
 pm_uninstall PKG
 pm_grant  PKG PERM
 pm_revoke PKG PERM
+deeplinks PKG                           dump declared deeplink URI templates
+                                        (parsed from the APK's binary
+                                        AndroidManifest.xml — sees every
+                                        scheme/host/path attribute, not just
+                                        what IPackageManager surfaces)
 install   size=N [reinstall=1] [grant=1]           then stream APK chunks → ok | ERR
 install_multi sizes=N1,N2,… [reinstall=1] [grant=1] then stream APKs concatenated
+```
+
+## User-data providers
+
+Reach ContentProviders directly via `IContentProvider.query` over
+`getContentProviderExternal` — no installed app, no `pm grant` needed.
+shell UID carries the read permission for all four authorities by
+default on AOSP / stock Pixel. Response is NDJSON: line 1 = JSON array
+of column names, then one JSON-array row per line.
+
+```
+sms       [type=inbox|sent|all] [limit=N]      content://sms[/inbox|/sent]
+calls     [type=in|out|missed|all] [limit=N]   content://call_log/calls
+contacts  [limit=N]                            content://com.android.contacts/contacts
+calendar  [from=MS] [to=MS] [limit=N]          content://com.android.calendar/instances/when/<from>/<to>
 ```
 
 ## Activities

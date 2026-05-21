@@ -15,6 +15,7 @@ mod adb;
 mod daemon;
 mod json;
 mod mirror;
+mod provider;
 mod screen;
 mod selector;
 mod shell;
@@ -74,6 +75,13 @@ Usage: hs [--host HOST] [--port PORT] <verb> [args]
   hs show PKG                        package info (path, ...)
 
   hs apps [--3rd]                    installed packages
+  hs links PKG                       deeplinks declared by PKG (parsed from
+                                       its AndroidManifest.xml directly)
+  hs sms      [inbox|sent|all]   [--limit N] [--json]   recent SMS
+  hs calls    [in|out|missed|all] [--limit N] [--json]   call log
+  hs contacts [--limit N] [--json]                       contacts list
+  hs calendar [--days N | --from MS --to MS] [--limit N] [--json]
+                                                         upcoming events
   hs open PKG | PKG/.Cls             start activity
   hs close PKG                       force-stop
   hs install APK [APK ...]           streamed PackageInstaller session
@@ -151,7 +159,23 @@ enum Cmd {
     StateDaemon,
     Shell,
     Submit(Option<String>),              // IME action on focused field, or matched selector
+    Links(String),                       // dump declared deeplink URI templates for PKG
+    Sms { kind: String, limit: u32, json: bool },
+    Calls { kind: String, limit: u32, json: bool },
+    Contacts { limit: u32, json: bool },
+    Calendar { from_ms: Option<i64>, to_ms: Option<i64>, days: Option<i64>, limit: u32, json: bool },
 }
+
+// SMS type codes — Android Telephony.TextBasedSmsColumns.
+const SMS_TYPES: &[(i64, &str)] = &[
+    (1, "inbox"), (2, "sent"), (3, "draft"),
+    (4, "outbox"), (5, "failed"), (6, "queued"),
+];
+// Call log type codes — Android CallLog.Calls.TYPE.
+const CALL_TYPES: &[(i64, &str)] = &[
+    (1, "in"), (2, "out"), (3, "missed"), (4, "voicemail"),
+    (5, "rejected"), (6, "blocked"), (7, "external"),
+];
 
 #[derive(Debug, Clone, Copy)]
 enum UiFormat { Human, Interactive, Json, Xml }
@@ -246,6 +270,29 @@ fn suggest(old: &str) -> String {
         Some(h) => format!("unknown command: {old}  — try `{h}`"),
         None    => format!("unknown command: {old}"),
     }
+}
+
+/// Shared arg parser for the simple provider verbs (`sms`, `calls`,
+/// `contacts`): consumes `--limit N` and `--json`, collects anything
+/// else as positional tokens.
+fn parse_provider_common<'a>(rest: &[&'a str]) -> Result<(u32, bool, Vec<&'a str>), String> {
+    let mut limit = 50_u32;
+    let mut json = false;
+    let mut positional: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while i < rest.len() {
+        match rest[i] {
+            "--limit" => {
+                i += 1;
+                limit = rest.get(i).ok_or("--limit needs N")?.parse()
+                    .map_err(|_| "bad --limit".to_string())?;
+            }
+            "--json" => json = true,
+            other => positional.push(other),
+        }
+        i += 1;
+    }
+    Ok((limit, json, positional))
 }
 
 fn parse_args(args: &[String]) -> Result<Opts, String> {
@@ -479,6 +526,67 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             Some(rest.join(" "))
         }),
 
+        // ─── Deeplinks (parsed straight from the APK's AndroidManifest) ─
+        Some((&"links", rest)) => {
+            let pkg = rest.first().ok_or("links needs PKG")?;
+            Cmd::Links(pkg.to_string())
+        }
+
+        // ─── ContentProvider readers ─────────────────────────────────
+        Some((&"sms", rest)) => {
+            let (limit, json, positional) = parse_provider_common(rest)?;
+            let kind = positional.first().copied().unwrap_or("inbox").to_string();
+            Cmd::Sms { kind, limit, json }
+        }
+        Some((&"calls", rest)) => {
+            let (limit, json, positional) = parse_provider_common(rest)?;
+            let kind = positional.first().copied().unwrap_or("all").to_string();
+            Cmd::Calls { kind, limit, json }
+        }
+        Some((&"contacts", rest)) => {
+            let (limit, json, positional) = parse_provider_common(rest)?;
+            if let Some(other) = positional.first() {
+                return Err(format!("contacts takes no positional: {other}"));
+            }
+            Cmd::Contacts { limit, json }
+        }
+        Some((&"calendar", rest)) => {
+            let mut limit = 50_u32;
+            let mut json = false;
+            let mut from_ms: Option<i64> = None;
+            let mut to_ms: Option<i64> = None;
+            let mut days: Option<i64> = None;
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i] {
+                    "--limit" => {
+                        i += 1;
+                        limit = rest.get(i).ok_or("--limit needs N")?.parse()
+                            .map_err(|_| "bad --limit".to_string())?;
+                    }
+                    "--json" => json = true,
+                    "--days" => {
+                        i += 1;
+                        days = Some(rest.get(i).ok_or("--days needs N")?.parse()
+                            .map_err(|_| "bad --days".to_string())?);
+                    }
+                    "--from" => {
+                        i += 1;
+                        from_ms = Some(rest.get(i).ok_or("--from needs MS")?.parse()
+                            .map_err(|_| "bad --from".to_string())?);
+                    }
+                    "--to" => {
+                        i += 1;
+                        to_ms = Some(rest.get(i).ok_or("--to needs MS")?.parse()
+                            .map_err(|_| "bad --to".to_string())?);
+                    }
+                    other => return Err(format!("unknown calendar arg: {other}")),
+                }
+                i += 1;
+            }
+            Cmd::Calendar { from_ms, to_ms, days, limit, json }
+        }
+
         // ─── Shell + raw wire ────────────────────────────────────────
         // `shell` and `do` are synonyms: shell is the natural REPL verb,
         // do <wire> is a one-shot raw call.
@@ -562,6 +670,51 @@ fn run(opts: &Opts) -> io::Result<()> {
             }
             Ok(())
         }
+        Cmd::Links(pkg) => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let body = conn.call(&format!("deeplinks {pkg}"))?;
+            if body.starts_with(b"ERR:") {
+                return Err(io::Error::other(String::from_utf8_lossy(&body).into_owned()));
+            }
+            let mut out = io::stdout().lock();
+            out.write_all(&body)?;
+            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
+            out.flush()
+        }
+        Cmd::Sms { kind, limit, json } => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let wire = format!("sms type={kind} limit={limit}");
+            provider::run(&mut conn, &wire, *json,
+                &[provider::TypeMap { column: "type", map: SMS_TYPES }])
+        }
+        Cmd::Calls { kind, limit, json } => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let wire = format!("calls type={kind} limit={limit}");
+            provider::run(&mut conn, &wire, *json,
+                &[provider::TypeMap { column: "type", map: CALL_TYPES }])
+        }
+        Cmd::Contacts { limit, json } => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let wire = format!("contacts limit={limit}");
+            provider::run(&mut conn, &wire, *json, &[])
+        }
+        Cmd::Calendar { from_ms, to_ms, days, limit, json } => {
+            // Resolve window. --days N takes precedence over --from/--to if
+            // both are given; default = now → now + 7 days.
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0);
+            let (from, to) = if let Some(d) = days {
+                (now, now + d * 24 * 60 * 60 * 1000)
+            } else {
+                (from_ms.unwrap_or(now),
+                 to_ms.unwrap_or(now + 7 * 24 * 60 * 60 * 1000))
+            };
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let wire = format!("calendar from={from} to={to} limit={limit}");
+            provider::run(&mut conn, &wire, *json, &[])
+        }
         Cmd::Submit(sel) => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = match sel {
@@ -615,6 +768,11 @@ fn run(opts: &Opts) -> io::Result<()> {
                 | Cmd::TypeInto { .. }
                 | Cmd::SettingsListAll
                 | Cmd::Submit(_)
+                | Cmd::Links(_)
+                | Cmd::Sms { .. }
+                | Cmd::Calls { .. }
+                | Cmd::Contacts { .. }
+                | Cmd::Calendar { .. }
                 | Cmd::Ui { .. } => unreachable!(),
             };
             let body = conn.call(&wire)?;

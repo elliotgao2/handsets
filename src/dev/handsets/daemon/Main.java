@@ -53,6 +53,8 @@ public final class Main {
             h.files = new Files();
             h.installer = new Installer(sysCtx);
             h.pm = new Pm(sysCtx);
+            h.manifest = new Manifest(sysCtx);
+            h.providers = new Providers(sysCtx);
             h.am = new Am(sysCtx);
             try { h.props = new Props(); }
             catch (Throwable t) { System.err.println("warn: Props init failed: " + t); }

@@ -22,6 +22,8 @@ public final class Server {
         public Files files;
         public Installer installer;
         public Pm pm;
+        public Manifest manifest;
+        public Providers providers;
         public Am am;
         public Props props;
         public Dumpsys dumpsys;
@@ -230,6 +232,21 @@ public final class Server {
                         break;
                     case "submit":
                         resp = runSubmit(cmd);
+                        break;
+                    case "deeplinks":
+                        resp = runDeeplinks(cmd);
+                        break;
+                    case "sms":
+                        resp = runSms(cmd);
+                        break;
+                    case "calls":
+                        resp = runCalls(cmd);
+                        break;
+                    case "contacts":
+                        resp = runContacts(cmd);
+                        break;
+                    case "calendar":
+                        resp = runCalendar(cmd);
                         break;
                     case "quit":
                         writeFrame(out, "bye".getBytes(StandardCharsets.UTF_8));
@@ -905,6 +922,38 @@ public final class Server {
         // `submit` with no args targets the focused EditText. A trailing
         // selector overrides that — `submit text~=Email`.
         return h.nodes.imeAction(afterHead(cmd));
+    }
+
+    private byte[] runDeeplinks(String cmd) {
+        String pkg = positional(cmd);
+        return h.manifest.deeplinks(pkg);
+    }
+
+    // ---------- user-data ContentProvider verbs ----------
+
+    private byte[] runSms(String cmd) {
+        String kind = strArgOr(cmd, "type", "inbox");
+        int limit = (int) longArg(cmd, "limit", 50);
+        return h.providers.sms(kind, limit);
+    }
+
+    private byte[] runCalls(String cmd) {
+        String kind = strArgOr(cmd, "type", "all");
+        int limit = (int) longArg(cmd, "limit", 50);
+        return h.providers.calls(kind, limit);
+    }
+
+    private byte[] runContacts(String cmd) {
+        int limit = (int) longArg(cmd, "limit", 50);
+        return h.providers.contacts(limit);
+    }
+
+    private byte[] runCalendar(String cmd) {
+        long now = System.currentTimeMillis();
+        long from = longArg(cmd, "from", now);
+        long to   = longArg(cmd, "to",   now + 7L * 24 * 60 * 60 * 1000);
+        int limit = (int) longArg(cmd, "limit", 50);
+        return h.providers.calendar(from, to, limit);
     }
 
     // ---------- key=value arg helpers ----------
