@@ -15,21 +15,18 @@ const DEVICE_LOG: &str = "/data/local/tmp/hs.log";
 const DEFAULT_PORT: u16 = 9008;
 
 /// Locate the on-device jar on the host. Probes (in order):
-///   1. $A11YDUMP_JAR
-///   2. ./build/hs.jar (typical dev layout)
-///   3. <exe_dir>/hs.jar
-///   4. <exe_dir>/../build/hs.jar
+///   1. $HANDSETS_JAR  (or legacy $A11YDUMP_JAR)
+///   2. <exe_dir>/hs.jar          — release tarball layout
+///   3. <exe_dir>/../build/hs.jar (and ../../, ../../../)
+///   4. ~/.handsets/hs.jar        — curl-installer layout (resolved even when
+///                                  <exe_dir> points at a /usr/local/bin symlink)
+///   5. ./build/hs.jar            — dev checkout
 pub(crate) fn locate_jar() -> io::Result<PathBuf> {
-    if let Ok(env) = std::env::var("A11YDUMP_JAR") {
-        let p = PathBuf::from(env);
-        if p.is_file() { return Ok(p); }
-    }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let candidates: &[PathBuf] = &[
-        cwd.join("build/hs.jar"),
-    ];
-    for p in candidates {
-        if p.is_file() { return Ok(p.clone()); }
+    for var in ["HANDSETS_JAR", "A11YDUMP_JAR"] {
+        if let Ok(env) = std::env::var(var) {
+            let p = PathBuf::from(env);
+            if p.is_file() { return Ok(p); }
+        }
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -45,13 +42,22 @@ pub(crate) fn locate_jar() -> io::Result<PathBuf> {
             }
         }
     }
+    if let Some(home) = std::env::var_os("HOME") {
+        let p = PathBuf::from(home).join(".handsets/hs.jar");
+        if p.is_file() { return Ok(p); }
+    }
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let p = cwd.join("build/hs.jar");
+    if p.is_file() { return Ok(p); }
     Err(io::Error::new(
         io::ErrorKind::NotFound,
-        "hs.jar not found. Set A11YDUMP_JAR or run from a checkout with build/hs.jar",
+        "hs.jar not found. Set HANDSETS_JAR, install via the official installer, \
+         or run from a checkout with build/hs.jar",
     ))
 }
 
-/// Try to find the handsets-viewer binary. PATH first, then alongside our binary.
+/// Try to find the handsets-viewer binary. PATH first, then alongside our
+/// binary, then the curl-installer layout under ~/.handsets.
 pub(crate) fn locate_viewer() -> Option<PathBuf> {
     if let Ok(p) = which("handsets-viewer") { return Some(p); }
     if let Ok(exe) = std::env::current_exe() {
@@ -64,6 +70,10 @@ pub(crate) fn locate_viewer() -> Option<PathBuf> {
                 if cand.is_file() { return Some(cand); }
             }
         }
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let p = PathBuf::from(home).join(".handsets/handsets-viewer");
+        if p.is_file() { return Some(p); }
     }
     None
 }

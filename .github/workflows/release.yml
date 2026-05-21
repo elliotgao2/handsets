@@ -1,0 +1,167 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Dry-run tag (artifacts only, no GitHub release)'
+        required: false
+        default: 'v0.0.0-dryrun'
+
+permissions:
+  contents: read
+
+jobs:
+  # ─── Build the on-device daemon JAR once, share across all CLI builds ───
+  build-jar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.1 cmdline-tools;latest'
+
+      - name: Build hs.jar
+        run: ./build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: build/hs.jar
+          if-no-files-found: error
+
+  # ─── Cross-build `hs` (and `handsets-viewer` on macOS) for every target ──
+  build-cli:
+    needs: build-jar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64,   os: macos-14,       target: aarch64-apple-darwin,         viewer: true,  ext: tar.gz }
+          - { name: macos-x86_64,  os: macos-13,       target: x86_64-apple-darwin,          viewer: true,  ext: tar.gz }
+          - { name: linux-x86_64,  os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,     viewer: false, ext: tar.gz }
+          - { name: linux-aarch64, os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,    viewer: false, ext: tar.gz, cross: true }
+          - { name: windows-x86_64, os: windows-latest, target: x86_64-pc-windows-msvc,      viewer: false, ext: zip }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install aarch64 cross linker (Linux only)
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - name: Build hs
+        shell: bash
+        run: cargo build --release --manifest-path handsets-cli/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Build handsets-viewer
+        if: matrix.viewer
+        shell: bash
+        run: cargo build --release --manifest-path handsets-viewer/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Download jar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: jar
+          path: build
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stage release tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="dist/handsets"
+          mkdir -p "$stage"
+          bin_ext=""
+          [[ "${{ matrix.target }}" == *windows* ]] && bin_ext=".exe"
+          cp "handsets-cli/target/${{ matrix.target }}/release/hs${bin_ext}" "$stage/"
+          if [[ "${{ matrix.viewer }}" == "true" ]]; then
+            cp "handsets-viewer/target/${{ matrix.target }}/release/handsets-viewer${bin_ext}" "$stage/"
+          fi
+          cp build/hs.jar "$stage/hs.jar"
+          [[ -f LICENSE ]] && cp LICENSE "$stage/" || true
+          cp README.md "$stage/"
+          echo "${{ steps.ver.outputs.tag }}" > "$stage/VERSION"
+
+      - name: Pack archive (tar.gz)
+        if: matrix.ext == 'tar.gz'
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="handsets-${{ matrix.name }}.tar.gz"
+          tar -C dist -czf "$asset" handsets
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$asset" > "$asset.sha256"
+          else
+            shasum -a 256 "$asset" > "$asset.sha256"
+          fi
+
+      - name: Pack archive (zip)
+        if: matrix.ext == 'zip'
+        shell: pwsh
+        run: |
+          $asset = "handsets-${{ matrix.name }}.zip"
+          Compress-Archive -Path dist/handsets -DestinationPath $asset -Force
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          "$hash  $asset" | Out-File -Encoding ascii "$asset.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: handsets-${{ matrix.name }}
+          path: |
+            handsets-${{ matrix.name }}.tar.gz
+            handsets-${{ matrix.name }}.tar.gz.sha256
+            handsets-${{ matrix.name }}.zip
+            handsets-${{ matrix.name }}.zip.sha256
+          if-no-files-found: ignore
+
+  # ─── Publish the GitHub release (tag pushes only) ──────────────────────
+  release:
+    needs: build-cli
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: handsets-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh dist
+
+      - name: Create / update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-rc.') || contains(github.ref_name, '-beta.') || contains(github.ref_name, '-alpha.') }}
