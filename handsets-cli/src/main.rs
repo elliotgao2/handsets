@@ -1625,39 +1625,6 @@ fn run_show_pkg(host: &str, port: u16, pkg: &str) -> io::Result<()> {
     out.flush()
 }
 
-/// Match a CSS-like selector against the current dump_active tree and print
-/// one node summary per match (bounds + class + text/id when present).
-fn run_query(host: &str, port: u16, sel: &str) -> io::Result<()> {
-    let selectors = selector::Selector::parse(sel).map_err(io::Error::other)?;
-    let mut conn = Conn::connect(host, port)?;
-    let body = conn.call("dump_active")?;
-    let text = std::str::from_utf8(&body)
-        .map_err(|e| io::Error::other(format!("dump not utf-8: {e}")))?;
-    let json = json::parse(text)
-        .map_err(|e| io::Error::other(format!("dump not json: {e}")))?;
-    // The dump_active payload's tree lives under `.root`. find_all walks
-    // any subtree; pass the top object so it descends into `.root`/`.children`.
-    let matches = selector::find_all(&json, &selectors);
-    let mut out = io::stdout().lock();
-    for n in matches {
-        let cls = selector::get_str(n, "cls").unwrap_or("");
-        let id  = selector::get_str(n, "rid").unwrap_or("");
-        let t   = selector::get_str(n, "text").unwrap_or("");
-        let d   = selector::get_str(n, "desc").unwrap_or("");
-        let b   = selector::bounds(n);
-        let bs  = match b {
-            Some((x1, y1, x2, y2)) => {
-                let cx = (x1 + x2) / 2;
-                let cy = (y1 + y2) / 2;
-                format!("[{x1},{y1}][{x2},{y2}] center=({cx},{cy})")
-            }
-            None => "[]".into(),
-        };
-        writeln!(out, "{bs}\tclass={cls}\tid={id}\ttext={t:?}\tdesc={d:?}")?;
-    }
-    out.flush()
-}
-
 fn write_response(cmd: &Cmd, body: &[u8]) -> io::Result<()> {
     let mut out = io::stdout().lock();
     out.write_all(body)?;

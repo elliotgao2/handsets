@@ -49,12 +49,6 @@ impl Reporter {
         out.flush()
     }
 
-    /// Like `ok` but for verbs that have no structured result payload —
-    /// the success line is just `{"verb":"...","ok":true}` in JSON mode.
-    pub fn ok_bare(&self, verb: &str, human: &str) -> io::Result<()> {
-        self.ok(verb, human, Obj::new())
-    }
-
     /// Convert an `ErrInfo` into both an output record (Human or JSON) and
     /// an `io::Error` whose `Other` payload carries the structured code via
     /// `ReportedError`. `main` downcasts that to choose the exit status.

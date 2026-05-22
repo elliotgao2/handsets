@@ -17,7 +17,6 @@ use crate::json::{as_arr, as_num, as_str, obj_get, Value};
 use crate::json_out::Obj;
 use crate::output::Reporter;
 use crate::session::Session;
-use crate::Conn;
 
 /// Match priority — lower is better. The walk records the best (lowest-
 /// priority-number) candidate seen in DFS order; on ties the first node wins
@@ -41,36 +40,6 @@ struct Hit {
     flags: String,
     bounds: (i32, i32, i32, i32),
     priority: Priority,
-}
-
-/// Legacy entry point used by `snapshot`/`screen`; thin shim around the
-/// session-aware path so the find-and-tap heuristic stays in one place.
-pub fn run(conn: &mut Conn, query: &str) -> io::Result<()> {
-    let body = conn.call("dump_active")?;
-    if let Some(e) = parse_err(&body) {
-        return Err(io::Error::other(format!("dump_active: ERR:{}", e.detail)));
-    }
-    let json = std::str::from_utf8(&body)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "dump_active not utf-8"))?;
-    let root = crate::json::parse(json)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("json: {e}")))?;
-    let tree = obj_get(&root, "root").unwrap_or(&root);
-    let hit = find(tree, query, &ActionFlags::default()).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::NotFound,
-            format!("no a11y node matched \"{query}\""))
-    })?;
-    let (l, t, r, b) = hit.bounds;
-    let cx = (l + r) / 2;
-    let cy = (t + b) / 2;
-    let ack = conn.call(&format!("tap x={cx} y={cy}"))?;
-    let ack_s = String::from_utf8_lossy(&ack);
-    let label = if !hit.text.is_empty() { hit.text.as_str() } else { hit.desc.as_str() };
-    eprintln!(
-        "tapped {label:?} cls={} flags={} bounds=[{},{},{},{}] at ({},{}) → {}",
-        hit.cls, hit.flags, l, t, r, b, cx, cy, ack_s
-    );
-    if ack_s.starts_with("ERR:") { return Err(io::Error::other(ack_s.into_owned())); }
-    Ok(())
 }
 
 /// Session-aware tap-by-text. Honours retries/--visible/--clickable/--unique
@@ -161,13 +130,6 @@ fn io_err_to_info(e: &io::Error) -> Option<ErrInfo> {
     None
 }
 
-/// Single best match — legacy callers that don't need the multi-match
-/// disambiguation surface. Honours --visible/--clickable/--enabled but
-/// not --unique/--nth (those are caller-side concerns).
-fn find(root: &Value, query: &str, flags: &ActionFlags) -> Option<Hit> {
-    let mut hits = find_all(root, query, flags);
-    if hits.is_empty() { None } else { Some(hits.remove(0)) }
-}
 
 /// Walk the tree, classify every node whose text/desc matches `query`,
 /// then return the matches sorted by priority (best first). Filters apply

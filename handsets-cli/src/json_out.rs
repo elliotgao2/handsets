@@ -53,12 +53,6 @@ impl Obj {
         self
     }
 
-    pub fn obj(mut self, key: &str, child: Obj) -> Self {
-        self.sep(key);
-        self.buf.push_str(&child.finish());
-        self
-    }
-
     pub fn finish(mut self) -> String {
         self.buf.push('}');
         self.buf
@@ -70,18 +64,6 @@ impl Obj {
         encode_str(&mut self.buf, key);
         self.buf.push(':');
     }
-}
-
-pub fn arr_of_str<I: IntoIterator<Item = S>, S: AsRef<str>>(items: I) -> String {
-    let mut buf = String::from("[");
-    let mut first = true;
-    for s in items {
-        if !first { buf.push(','); }
-        first = false;
-        encode_str(&mut buf, s.as_ref());
-    }
-    buf.push(']');
-    buf
 }
 
 pub fn encode_str(out: &mut String, s: &str) {
@@ -131,8 +113,8 @@ mod tests {
 
     #[test]
     fn nested_obj() {
-        let inner = Obj::new().n("x", 1).n("y", 2);
-        let s = Obj::new().s("verb", "tap").obj("result", inner).finish();
+        let inner = Obj::new().n("x", 1).n("y", 2).finish();
+        let s = Obj::new().s("verb", "tap").raw("result", &inner).finish();
         assert_eq!(s, r#"{"verb":"tap","result":{"x":1,"y":2}}"#);
     }
 }

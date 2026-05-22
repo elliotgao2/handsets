@@ -85,12 +85,6 @@ impl Session {
         Ok(v)
     }
 
-    /// Return the cached dump if it's fresh, else fetch a new one.
-    pub fn get_dump(&mut self) -> io::Result<&crate::json::Value> {
-        self.ensure_dump()?;
-        Ok(self.cached_tree.as_ref().unwrap())
-    }
-
     /// Inspect the (freshening if needed) dump without holding a borrow on
     /// `self`. Lets the caller turn around and use `self.conn` to issue
     /// further wire commands without fighting the borrow checker.

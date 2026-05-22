@@ -401,20 +401,6 @@ pub(crate) fn bounds(node: &Value) -> Option<(i64, i64, i64, i64)> {
     None
 }
 
-/// Find every node in `dump` that matches any of `selectors` (OR).
-///
-/// `dump` may be the raw daemon payload — i.e. the outer envelope
-/// `{ "ts": …, "root": <node> }` (dump_active) or
-/// `{ "ts": …, "windows": [{ "root": <node> }, …] }` (dump). We unwrap
-/// those envelopes into the real per-window root nodes before walking.
-pub(crate) fn find_all<'a>(dump: &'a Value, selectors: &[Selector]) -> Vec<&'a Value> {
-    // Build a one-shot context so relational pseudo-classes (:in / :near /
-    // :below / :right-of) can resolve. Most callers don't use relations,
-    // in which case this is essentially free.
-    let ctx = MatchCtx::new(dump);
-    find_all_with(&ctx, selectors)
-}
-
 /// Re-usable context for selector evaluation — caches the per-window roots
 /// so relational pseudo-classes (:in / :near / :below / :right-of) can do
 /// quick ancestor/anchor lookups without re-walking the envelope each time.
@@ -423,7 +409,6 @@ pub(crate) struct MatchCtx<'a> {
     /// Parent map keyed by node pointer-identity (raw `*const Value`),
     /// computed lazily on first relational evaluation.
     parent: std::cell::OnceCell<std::collections::HashMap<usize, &'a Value>>,
-    dump: &'a Value,
 }
 
 impl<'a> MatchCtx<'a> {
@@ -431,7 +416,6 @@ impl<'a> MatchCtx<'a> {
         Self {
             roots: collect_roots(dump),
             parent: std::cell::OnceCell::new(),
-            dump,
         }
     }
 
@@ -504,7 +488,6 @@ impl<'a> MatchCtx<'a> {
         false
     }
 
-    pub fn dump(&self) -> &'a Value { self.dump }
 }
 
 #[derive(Copy, Clone)]
