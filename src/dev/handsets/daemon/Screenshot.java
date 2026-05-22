@@ -13,7 +13,10 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.Display;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -130,14 +133,76 @@ public final class Screenshot {
         int quality = clampQuality(args.quality);
         boolean png = "png".equalsIgnoreCase(args.format);
 
+        byte[] result;
         if (mirrorAvailable) {
             try {
-                return mirrorCapture(longEdge, quality, png);
+                result = mirrorCapture(longEdge, quality, png);
             } catch (Throwable t) {
                 System.err.println("screenshot: mirror.capture failed, falling back: " + t);
+                result = fallbackCapture(longEdge, quality, png);
+            }
+        } else {
+            result = fallbackCapture(longEdge, quality, png);
+        }
+
+        // FLAG_SECURE detection. When a foreground window asks the
+        // system not to be screenshotted, our VirtualDisplay mirror /
+        // UiAutomation fallback both succeed but emit an all-black
+        // frame. That compresses to a few KB at *any* resolution. Use
+        // size as a cheap pre-check and only walk `dumpsys window` if
+        // the frame looks suspicious; surface the offending window
+        // instead of handing the caller a useless black image.
+        int threshold = png ? 32 * 1024 : 12 * 1024;
+        if (result.length < threshold) {
+            String secureWin = findSecureWindow();
+            if (secureWin != null) {
+                return ("ERR:secure-window:" + secureWin)
+                        .getBytes(StandardCharsets.UTF_8);
             }
         }
-        return fallbackCapture(longEdge, quality, png);
+        return result;
+    }
+
+    /** Walk {@code dumpsys window windows} for the first visible window
+     *  with FLAG_SECURE in its {@code fl=} line. Returns the window's
+     *  short name (e.g. {@code com.bank.app/.LoginActivity}) or null. */
+    private static String findSecureWindow() {
+        try {
+            Process p = Runtime.getRuntime().exec(
+                    new String[] { "dumpsys", "window", "windows" });
+            try (BufferedReader r = new BufferedReader(
+                    new InputStreamReader(p.getInputStream(),
+                            StandardCharsets.UTF_8))) {
+                String currentWin = null;
+                String line;
+                while ((line = r.readLine()) != null) {
+                    String t = line.trim();
+                    if (t.startsWith("Window #")) {
+                        int curly = t.indexOf('{');
+                        int closeBrace = t.indexOf('}', curly);
+                        if (curly >= 0 && closeBrace > curly) {
+                            String inside = t.substring(curly + 1, closeBrace);
+                            int sp = inside.lastIndexOf(' ');
+                            currentWin = sp >= 0
+                                    ? inside.substring(sp + 1)
+                                    : inside;
+                        }
+                    } else if (t.startsWith("fl=") && containsToken(t, "SECURE")) {
+                        return currentWin != null ? currentWin : "unknown";
+                    }
+                }
+            }
+            p.waitFor();
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /** Whole-token match against a space-separated flags line. */
+    private static boolean containsToken(String flagsLine, String token) {
+        for (String tok : flagsLine.substring(3).split(" ")) {
+            if (token.equals(tok)) return true;
+        }
+        return false;
     }
 
     private byte[] mirrorCapture(int longEdge, int quality, boolean png) throws Exception {

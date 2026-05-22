@@ -962,6 +962,14 @@ fn run_see(host: &str, port: u16, dest: Option<&str>) -> io::Result<()> {
         other => return Err(io::Error::other(
             format!("see: unsupported extension '.{other}' (jpg|png|xml|json)"))),
     };
+    if bytes.starts_with(b"ERR:secure-window:") {
+        let win = String::from_utf8_lossy(&bytes[b"ERR:secure-window:".len()..]);
+        return Err(io::Error::other(format!(
+            "screenshot blocked: {win} has FLAG_SECURE set — the system denies \
+             screen capture of this window (common for banking, password, and \
+             incognito screens). Not saving to {path}."
+        )));
+    }
     if bytes.starts_with(b"ERR:") {
         return Err(io::Error::other(String::from_utf8_lossy(&bytes).into_owned()));
     }
