@@ -321,7 +321,7 @@ Pre-1.0. The CLI surface is stable; the wire protocol may shift between minor ve
 - [Cookbook](docs/cookbook.md) — RPA recipes (login, retry, fan-out, etc.)
 - [Sharp edges](docs/sharp-edges.md)
 - [Wire reference](docs/wire.md)
-- [Blog](docs/blog/) — long-form posts on how Handsets works
+- [Blog](https://elliotgao2.github.io/handsets/blog/) — long-form posts on how Handsets works
 
 ## License
 

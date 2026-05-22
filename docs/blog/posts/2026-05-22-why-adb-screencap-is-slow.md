@@ -1,6 +1,11 @@
-# Why `adb screencap` is slow
+---
+date: 2026-05-22
+slug: why-adb-screencap-is-slow
+categories:
+  - Performance
+---
 
-*2026-05-22*
+# Why `adb screencap` is slow
 
 `adb shell screencap -p` is the default way to grab an Android screen from
 a host machine. On a stock Android 15 emulator at 1440×3120, it takes a
@@ -122,7 +127,7 @@ process to start. The daemon acquires the most recent `Image` from the
 ImageReader (already produced asynchronously by the listener thread on
 the previous frame), JPEG-encodes it, and ships the bytes back.
 
-The relevant detail in the [mirror code](../../src/dev/handsets/daemon/Screenshot.java)
+The relevant detail in the [mirror code](https://github.com/elliotgao2/handsets/blob/main/src/dev/handsets/daemon/Screenshot.java)
 is that the listener thread does the expensive
 `copyPixelsFromBuffer` — the GPU-fence-blocking call — *without* holding
 the capture lock, then briefly takes the lock just to swap pointers.
@@ -182,7 +187,7 @@ shaves the agent default to 12 ms.
 
 - Taking one screenshot a day for a bug report.
 - Recording a video — `hs see` (the bare GUI viewer) uses MediaCodec
-  H.264 streaming via [`H264Streamer.java`](../../src/dev/handsets/daemon/H264Streamer.java),
+  H.264 streaming via [`H264Streamer.java`](https://github.com/elliotgao2/handsets/blob/main/src/dev/handsets/daemon/H264Streamer.java),
   a separate path.
 - Working over a slow remote `adb tcpip` link where the wire, not the
   encode, is the bottleneck.
