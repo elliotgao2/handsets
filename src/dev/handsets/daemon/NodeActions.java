@@ -56,6 +56,31 @@ final class NodeActions {
     }
 
     /**
+     * Insert the current system clipboard into the focused EditText (or
+     * the one matched by {@code selectorStr}, if non-null) via
+     * {@code AccessibilityNodeInfo.ACTION_PASTE}. The clipboard itself
+     * is set with {@code hs clip TEXT} (wire: {@code clip_set}); this
+     * verb is the on-device equivalent of pressing Cmd/Ctrl+V.
+     */
+    byte[] pasteAction(String selectorStr) {
+        AccessibilityNodeInfo target;
+        if (selectorStr == null || selectorStr.isEmpty()) {
+            target = findInputFocus();
+            if (target == null) return err("no-focused-input");
+        } else {
+            Selector sel;
+            try { sel = Selector.parse(selectorStr); }
+            catch (IllegalArgumentException e) { return err("bad-selector:" + e.getMessage()); }
+            target = find(sel);
+            if (target == null) return err("not-found:" + sel);
+        }
+        boolean ok;
+        try { ok = target.performAction(AccessibilityNodeInfo.ACTION_PASTE); }
+        catch (Throwable t) { return err("paste-threw:" + t.getMessage()); }
+        return ok ? ok("ok paste") : err("paste-rejected");
+    }
+
+    /**
      * Press the IME action button on the focused EditText (or the one
      * matched by {@code selectorStr}, if non-null). Routes through
      * {@code AccessibilityAction.ACTION_IME_ENTER}, which makes the

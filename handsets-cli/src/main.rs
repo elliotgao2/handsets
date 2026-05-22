@@ -102,6 +102,9 @@ Usage: hs [--host HOST] [--port PORT] <verb> [args]
   hs swipe X1 Y1 X2 Y2 [DUR_MS]          raw-coordinate swipe
   hs submit [SELECTOR]                   press the IME submit/search/go/done
                                            key on the focused (or matched) field
+  hs paste  [SELECTOR]                   insert the device clipboard into the
+                                           focused (or matched) field
+                                           (write the clipboard with `hs clip TEXT`)
 
   hs wait idle [Nms|Ns]              wait for the UI to settle
   hs wait \"Login\"                    wait for that text to appear
@@ -164,6 +167,7 @@ enum Cmd {
     StateDaemon,
     Shell,
     Submit(Option<String>),              // IME action on focused field, or matched selector
+    Paste(Option<String>),               // ACTION_PASTE on focused field, or matched selector
     Links(String),                       // dump declared deeplink URI templates for PKG
     Sms { kind: String, limit: u32, json: bool },
     Calls { kind: String, limit: u32, json: bool },
@@ -540,6 +544,13 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             Some(rest.join(" "))
         }),
 
+        // ─── Paste (ACTION_PASTE on focused/selected field) ──────────
+        Some((&"paste", rest)) => Cmd::Paste(if rest.is_empty() {
+            None
+        } else {
+            Some(rest.join(" "))
+        }),
+
         // ─── Deeplinks (parsed straight from the APK's AndroidManifest) ─
         Some((&"links", rest)) => {
             let pkg = rest.first().ok_or("links needs PKG")?;
@@ -844,6 +855,21 @@ fn run(opts: &Opts) -> io::Result<()> {
             if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
             out.flush()
         }
+        Cmd::Paste(sel) => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let wire = match sel {
+                Some(s) => format!("paste {s}"),
+                None => "paste".to_string(),
+            };
+            let body = conn.call(&wire)?;
+            if body.starts_with(b"ERR:") {
+                return Err(io::Error::other(String::from_utf8_lossy(&body).into_owned()));
+            }
+            let mut out = io::stdout().lock();
+            out.write_all(&body)?;
+            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
+            out.flush()
+        }
         Cmd::TypeInto { selector, text } => {
             // Translate to a daemon wire command: node_set_text <selector> value=TEXT.
             let mut conn = Conn::connect(&opts.host, opts.port)?;
@@ -882,6 +908,7 @@ fn run(opts: &Opts) -> io::Result<()> {
                 | Cmd::TypeInto { .. }
                 | Cmd::SettingsListAll
                 | Cmd::Submit(_)
+                | Cmd::Paste(_)
                 | Cmd::Links(_)
                 | Cmd::Sms { .. }
                 | Cmd::Calls { .. }

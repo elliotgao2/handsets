@@ -239,6 +239,9 @@ public final class Server {
                     case "submit":
                         resp = runSubmit(cmd);
                         break;
+                    case "paste":
+                        resp = runPaste(cmd);
+                        break;
                     case "deeplinks":
                         resp = runDeeplinks(cmd);
                         break;
@@ -940,6 +943,12 @@ public final class Server {
         // `submit` with no args targets the focused EditText. A trailing
         // selector overrides that — `submit text~=Email`.
         return h.nodes.imeAction(afterHead(cmd));
+    }
+
+    private byte[] runPaste(String cmd) {
+        // `paste` with no args inserts the system clipboard into the
+        // focused EditText. Trailing selector overrides — `paste id=...`.
+        return h.nodes.pasteAction(afterHead(cmd));
     }
 
     private byte[] runDeeplinks(String cmd) {
