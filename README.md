@@ -172,7 +172,40 @@ hs find 'Button[text="Sign in"]'                       # exact text match
 hs find 'EditText[rid~=email]'                         # id contains "email"
 hs find 'TextView[text~=Login]:clickable'              # flag filter
 hs find 'Button[text="OK"], Button[text="Continue"]'   # comma = OR
+
+# Relational pseudo-classes — anchor matches to nearby / containing nodes:
+hs find '*EditText:below(TextView[text=Email])'        # field under a label
+hs find 'Button:near(ImageView[desc~=cart], 200)'      # within 200 px
+hs find 'Button[text=OK]:in(LinearLayout[id~=dialog])' # inside a container
 ```
+
+### RPA workflow
+
+```
+hs run  [SCRIPT|-]                  batch CLI verbs over one warm socket
+hs init [PATH]                      scaffold a starter script.hs
+hs act  --tap "X" --until "Y" …     one-shot tap-then-verify composite
+hs fan  S1,S2 -- VERB ARGS          run VERB in parallel on each device
+```
+
+Every action verb (`tap`, `type`, `find`, `wait`, `submit`, `paste`, `act`)
+honours a shared flag set so RPA scripts stop reimplementing retry/filter
+loops:
+
+```
+--timeout MS    --retries N [--retry-delay MS]
+--visible       --clickable       --enabled
+--unique        --nth I
+--json          --fresh
+```
+
+Failures map to distinct exit codes (`2 NOT_FOUND`, `3 TIMEOUT`,
+`4 DAEMON_ERROR`, `5 DEVICE_GONE`, `6 AMBIGUOUS`, `7 PRECONDITION`,
+`8 BAD_ARG`, `9 SECURE_WINDOW`, `10 UNKNOWN_CMD`), and `--json` (or
+`HS_FORMAT=json`) emits `{"verb":…, "ok":…, "result"|"error":…}` per line
+for unattended scripts. See [docs/cookbook.md](docs/cookbook.md) for end-
+to-end recipes (login flow, retry-on-flake, two-factor SMS, multi-device
+fan-out, …).
 
 ### Activity
 
@@ -283,6 +316,7 @@ single-call latency and shell composition.
 
 - [Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
+- [Cookbook](docs/cookbook.md) — RPA recipes (login, retry, fan-out, etc.)
 - [Sharp edges](docs/sharp-edges.md)
 - [Wire reference](docs/wire.md)
 

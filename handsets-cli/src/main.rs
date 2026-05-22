@@ -11,13 +11,22 @@ use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+mod act;
 mod adb;
 mod daemon;
+mod errors;
+mod fan;
+mod flags;
+mod init;
 mod json;
+mod json_out;
 mod mirror;
+mod output;
 mod provider;
+mod run_script;
 mod screen;
 mod selector;
+mod session;
 mod shell;
 mod snapshot;
 mod state_cache;
@@ -43,8 +52,16 @@ fn main() -> ExitCode {
     match run(&opts) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("hs: {e}");
-            ExitCode::from(1)
+            // If the verb funnelled its failure through `output::Reporter`,
+            // the structured ErrCode rides in the error payload so we can
+            // surface a distinct exit status. Otherwise this is a generic
+            // I/O / setup failure and we fall back to 1.
+            if let Some(code) = output::err_code_of(&e) {
+                ExitCode::from(code.exit_code())
+            } else {
+                eprintln!("hs: {e}");
+                ExitCode::from(1)
+            }
         }
     }
 }
@@ -127,9 +144,40 @@ Usage: hs [--host HOST] [--port PORT] <verb> [args]
                                        hs do     is the same thing.
   hs do <wire-cmd>                   fire one wire command (raw protocol)
 
+  hs run [SCRIPT|-]                  batch CLI verbs over one warm socket;
+                                       `set timeout=8s | retries=2 |
+                                       continue-on-error | dump-ttl=150ms`
+                                       directives, `#` comments, blanks ok
+  hs init [PATH]                     scaffold a starter script.hs
+  hs act --tap SEL|XY --until SPEC   tap (or --type/--key/--swipe) then wait
+       [--until-text TEXT | --until-activity PKG | --until-selector SEL |
+        --until-idle] [--timeout MS] [--retries N]
+  hs fan SERIAL,SERIAL,... -- VERB   run VERB in parallel against each device
+
+Shared action flags (tap, type, find, wait, submit, paste, act):
+  --timeout MS                       per-call wait budget (default daemon 10 s)
+  --retries N [--retry-delay MS]     retry on TIMEOUT / NOT_FOUND
+  --visible | --clickable | --enabled  filter selector matches
+  --unique  | --nth I                disambiguate (exit 6 on ambiguity)
+  --fresh                            force re-dump (hs run / hs shell only)
+  --json                             emit {verb, ok, result, error} per line
+
+Selector pseudo-classes (`hs find`, `hs tap '<SEL>'`):
+  :visible :clickable :enabled :focused :checkable :checked
+  :in(SEL)            descendant of any node matching SEL
+  :below(SEL)         top edge ≥ anchor's bottom edge
+  :right-of(SEL)      left edge ≥ anchor's right edge
+  :near(SEL, PX)      centre-to-centre distance ≤ PX
+
+Exit codes:
+  0 ok  2 NOT_FOUND  3 TIMEOUT  4 DAEMON_ERROR  5 DEVICE_GONE
+  6 AMBIGUOUS  7 PRECONDITION  8 BAD_ARG  9 SECURE_WINDOW  10 UNKNOWN_CMD
+
 Global options:
   --host HOST                        default 127.0.0.1
   --port PORT                        default 9008
+  --device | -s SERIAL               route to the daemon for SERIAL
+  --json                             default output to JSON (also HS_FORMAT=json)
 
 Low-level (kept for power users):
   hs ping  hs snapshot  hs screen  hs bench  hs quit  hs input <subcmd>
@@ -139,36 +187,43 @@ Low-level (kept for power users):
 struct Opts {
     host: String,
     port: u16,
+    out_fmt: flags::OutFmt,
     cmd: Cmd,
 }
 
 #[derive(Debug)]
 enum Cmd {
     Ping,
-    Query(String),
+    Find { selector: String, flags: flags::ActionFlags },
     Input(String),       // pre-built wire command, e.g. "tap x=720 y=1500"
-    TapText(String),     // dump→find→tap by text/content-description
-    Snapshot,            // dump→list clickable labels in reading order
-    Screen,              // dump→render layout as a text grid (aspect-fit)
+    TapText { query: String, flags: flags::ActionFlags },
+    TapXY { x: i32, y: i32, flags: flags::ActionFlags },
+    Snapshot,
+    Screen,
     Quit,
     Bench { n: u32 },
-    Adb(adb::Cmd),       // wire-level subcommands routed via the daemon socket
+    Adb(adb::Cmd),
     Connect(daemon::ConnectOpts),
     Disconnect(daemon::DisconnectOpts),
-    See(Option<String>),                 // None = open viewer; Some(path) → dispatch on extension
-    Wait(String),                        // smart-dispatch: "idle", "<text>", "<pkg>", "Nms"
-    Cp { src: String, dst: String },     // direction inferred from "device:" prefix
-    ShowPkg(String),                     // composed: pm path + dumpsys package summary
-    Info,                                // neofetch-style device snapshot
-    TypeInto { selector: String, text: String },  // node_set_text variant
-    SettingsListAll,                     // hs settings (bare) → system+secure+global
-    Ui { format: UiFormat, all: bool },  // human / json / xml dump
+    See(Option<String>),
+    Wait { spec: String, flags: flags::ActionFlags },
+    Cp { src: String, dst: String },
+    ShowPkg(String),
+    Info,
+    TypeFocused { text: String, flags: flags::ActionFlags },
+    TypeInto { selector: String, text: String, flags: flags::ActionFlags },
+    SettingsListAll,
+    Ui { format: UiFormat, all: bool },
     Devices,
     StateDaemon,
     Shell,
-    Submit(Option<String>),              // IME action on focused field, or matched selector
-    Paste(Option<String>),               // ACTION_PASTE on focused field, or matched selector
-    Links(String),                       // dump declared deeplink URI templates for PKG
+    Run { script: Option<String>, flags: flags::ActionFlags },  // hs run [SCRIPT|-]
+    Act(act::ActOpts),                                          // hs act --tap … --until …
+    Fan { serials: Vec<String>, argv: Vec<String> },            // hs fan SERIALS -- VERB ARGS
+    Init { path: Option<String> },                              // hs init [PATH]
+    Submit { sel: Option<String>, flags: flags::ActionFlags },
+    Paste { sel: Option<String>, flags: flags::ActionFlags },
+    Links(String),
     Sms { kind: String, limit: u32, json: bool },
     Calls { kind: String, limit: u32, json: bool },
     Contacts { limit: u32, json: bool },
@@ -236,24 +291,25 @@ fn parse_drop(rest: &[&str]) -> Result<daemon::DisconnectOpts, String> {
     Ok(opts)
 }
 
-/// Parse the trailing tokens of `hs input <subcmd> ...` into the wire
-/// command the daemon expects.
 /// `hs tap` — text-lookup when arg isn't a pair of integers, raw coords
-/// when it is.
+/// when it is. Strips the shared ActionFlags surface first so RPA scripts
+/// can `hs tap "Login" --visible --unique --timeout 5s --retries 3`.
 fn parse_tap(rest: &[&str]) -> Result<Cmd, String> {
-    if rest.is_empty() {
+    let mut flags = flags::ActionFlags::default();
+    let positional = flags.take(rest)?;
+    if positional.is_empty() {
         return Err("tap needs either TEXT or X Y coords".into());
     }
-    if rest.len() == 2 {
-        let (x, y) = (rest[0].parse::<i32>(), rest[1].parse::<i32>());
+    if positional.len() == 2 {
+        let (x, y) = (positional[0].parse::<i32>(), positional[1].parse::<i32>());
         if let (Ok(x), Ok(y)) = (x, y) {
-            return Ok(Cmd::Input(format!("tap x={x} y={y}")));
+            return Ok(Cmd::TapXY { x, y, flags });
         }
     }
-    if rest.len() == 1 && rest[0].parse::<i32>().is_ok() {
+    if positional.len() == 1 && positional[0].parse::<i32>().is_ok() {
         return Err("tap with a single number is ambiguous — pass two ints for coords, or quote text".into());
     }
-    Ok(Cmd::TapText(rest.join(" ")))
+    Ok(Cmd::TapText { query: positional.join(" "), flags })
 }
 
 /// True if `s` looks like a package name: dot-separated, no slash.
@@ -316,6 +372,8 @@ fn parse_provider_common<'a>(rest: &[&'a str]) -> Result<(u32, bool, Vec<&'a str
 fn parse_args(args: &[String]) -> Result<Opts, String> {
     let mut host = DEFAULT_HOST.to_string();
     let mut port = DEFAULT_PORT;
+    let mut out_fmt = flags::OutFmt::from_env();
+    let mut device_serial: Option<String> = None;
     let mut positional: Vec<&str> = Vec::new();
     let mut i = 0;
     while i < args.len() {
@@ -333,6 +391,12 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
                     .parse()
                     .map_err(|_| "invalid --port".to_string())?;
             }
+            "-s" | "--device" => {
+                i += 1;
+                device_serial = Some(args.get(i)
+                    .ok_or("--device needs a SERIAL")?.clone());
+            }
+            "--json" => out_fmt = flags::OutFmt::Json,
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -340,6 +404,17 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             _ => positional.push(a),
         }
         i += 1;
+    }
+
+    // `--device SERIAL` resolves to the per-device forwarded port so the
+    // rest of the CLI can stay device-agnostic. We deliberately do this
+    // before verb parsing so a missing forward fails fast with a clear
+    // error rather than later as "no daemon listening".
+    if let Some(serial) = device_serial.as_deref() {
+        match resolve_device_port(serial) {
+            Ok(p) => port = p,
+            Err(e) => return Err(e),
+        }
     }
 
     let cmd = match positional.split_first() {
@@ -392,8 +467,10 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
 
         // ─── Query / state ───────────────────────────────────────────
         Some((&"find", rest)) => {
-            if rest.is_empty() { return Err("find needs a CSS-like SELECTOR".into()); }
-            Cmd::Query(rest.join(" "))
+            let mut flags = flags::ActionFlags::default();
+            let positional = flags.take(rest)?;
+            if positional.is_empty() { return Err("find needs a CSS-like SELECTOR".into()); }
+            Cmd::Find { selector: positional.join(" "), flags }
         }
         Some((&"ui", rest)) => {
             let mut fmt = UiFormat::Human;
@@ -418,17 +495,27 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
 
         // ─── Wait — smart-dispatched at runtime ──────────────────────
         Some((&"wait", rest)) => {
-            if rest.is_empty() { return Err("wait needs SPEC (idle | TEXT | PKG | Nms)".into()); }
-            Cmd::Wait(rest.join(" "))
+            let mut flags = flags::ActionFlags::default();
+            let positional = flags.take(rest)?;
+            if positional.is_empty() { return Err("wait needs SPEC (idle | TEXT | PKG | Nms)".into()); }
+            Cmd::Wait { spec: positional.join(" "), flags }
         }
 
         // ─── Input ───────────────────────────────────────────────────
         Some((&"tap", rest)) => parse_tap(rest)?,
-        Some((&"type", rest)) => match rest.len() {
-            0 => return Err("type needs TEXT (1 arg) or SELECTOR TEXT (2 args)".into()),
-            1 => Cmd::Input(format!("text {}", rest[0])),   // focused-field KeyEvents
-            2 => Cmd::TypeInto { selector: rest[0].into(), text: rest[1].into() },
-            _ => return Err("type takes TEXT or SELECTOR TEXT — quote multi-word arguments".into()),
+        Some((&"type", rest)) => {
+            let mut tflags = flags::ActionFlags::default();
+            let positional = tflags.take(rest)?;
+            match positional.len() {
+                0 => return Err("type needs TEXT (1 arg) or SELECTOR TEXT (2 args)".into()),
+                1 => Cmd::TypeFocused { text: positional[0].into(), flags: tflags },
+                2 => Cmd::TypeInto {
+                    selector: positional[0].into(),
+                    text:     positional[1].into(),
+                    flags:    tflags,
+                },
+                _ => return Err("type takes TEXT or SELECTOR TEXT — quote multi-word arguments".into()),
+            }
         }
         Some((&"go", rest)) => {
             let k = rest.first().ok_or("go needs KEY (back|home|recents|enter|…)")?;
@@ -452,7 +539,7 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
                         }
                         None => format!("swipe_dir {d}"),
                     };
-                    return Ok(Opts { host, port, cmd: Cmd::Input(wire) });
+                    return Ok(Opts { host, port, out_fmt, cmd: Cmd::Input(wire) });
                 }
             }
             if rest.len() < 4 || rest.len() > 5 {
@@ -538,18 +625,50 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         Some((&"info", _))   => Cmd::Info,
 
         // ─── Submit (IME action button) ──────────────────────────────
-        Some((&"submit", rest)) => Cmd::Submit(if rest.is_empty() {
-            None
-        } else {
-            Some(rest.join(" "))
-        }),
+        Some((&"submit", rest)) => {
+            let mut flags = flags::ActionFlags::default();
+            let positional = flags.take(rest)?;
+            let sel = if positional.is_empty() { None } else { Some(positional.join(" ")) };
+            Cmd::Submit { sel, flags }
+        }
 
         // ─── Paste (ACTION_PASTE on focused/selected field) ──────────
-        Some((&"paste", rest)) => Cmd::Paste(if rest.is_empty() {
-            None
-        } else {
-            Some(rest.join(" "))
-        }),
+        Some((&"paste", rest)) => {
+            let mut flags = flags::ActionFlags::default();
+            let positional = flags.take(rest)?;
+            let sel = if positional.is_empty() { None } else { Some(positional.join(" ")) };
+            Cmd::Paste { sel, flags }
+        }
+
+        // ─── Batch / session execution ───────────────────────────────
+        Some((&"run", rest)) => {
+            let mut flags = flags::ActionFlags::default();
+            let positional = flags.take(rest)?;
+            let script = positional.first().map(|s| s.to_string());
+            Cmd::Run { script, flags }
+        }
+
+        // ─── hs act — one-shot tap-then-assert composite ─────────────
+        Some((&"act", rest)) => Cmd::Act(act::parse(rest)?),
+
+        // ─── hs fan — multi-device fan-out ───────────────────────────
+        Some((&"fan", rest)) => {
+            // Form: `hs fan SERIAL,SERIAL[,...] -- VERB ARGS`
+            let idx = rest.iter().position(|t| *t == "--")
+                .ok_or("fan: expected `--` between serial list and verb")?;
+            let serials_blob = rest[..idx].join(" ");
+            let serials: Vec<String> = serials_blob.split(|c: char| c == ',' || c.is_whitespace())
+                .filter(|s| !s.is_empty()).map(|s| s.to_string()).collect();
+            if serials.is_empty() { return Err("fan: serial list is empty".into()); }
+            let argv: Vec<String> = rest[idx + 1..].iter().map(|s| s.to_string()).collect();
+            if argv.is_empty() { return Err("fan: nothing to run after `--`".into()); }
+            Cmd::Fan { serials, argv }
+        }
+
+        // ─── hs init — scaffold a starter script ─────────────────────
+        Some((&"init", rest)) => Cmd::Init {
+            path: rest.first().map(|s| s.to_string()),
+        },
 
         // ─── Deeplinks (parsed straight from the APK's AndroidManifest) ─
         Some((&"links", rest)) => {
@@ -695,15 +814,41 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         Some((other, _)) => return Err(suggest(other)),
     };
 
-    Ok(Opts { host, port, cmd })
+    Ok(Opts { host, port, out_fmt, cmd })
+}
+
+/// `--device SERIAL` → host-side forwarded port for that device. Errors if
+/// the device isn't attached or the daemon hasn't been brought up with
+/// `hs use`. Keeps the global flag thin so it doesn't accidentally touch
+/// the daemon lifecycle.
+fn resolve_device_port(serial: &str) -> Result<u16, String> {
+    let rows = daemon::devices().map_err(|e| format!("adb devices: {e}"))?;
+    let row = rows.iter().find(|r| r.serial == serial)
+        .ok_or_else(|| format!("--device {serial}: not attached"))?;
+    row.host_port.ok_or_else(|| format!(
+        "--device {serial}: no forwarded daemon — run `hs use {serial}` first"))
 }
 
 fn run(opts: &Opts) -> io::Result<()> {
     match &opts.cmd {
         Cmd::Bench { n } => bench(&opts.host, opts.port, *n),
-        Cmd::TapText(text) => {
+        Cmd::TapText { query, flags } => {
+            let reporter = output::Reporter::new(flags.out(opts.out_fmt));
+            let mut sess = session::Session::connect(
+                &opts.host, opts.port, flags.clone(), opts.out_fmt)?;
+            // One-shot: zero TTL so the dump never lingers between runs.
+            sess.dump_ttl_ms = 0;
+            tap_text::run_session(&mut sess, query, &reporter, "tap")
+        }
+        Cmd::TapXY { x, y, flags } => {
+            let reporter = output::Reporter::new(flags.out(opts.out_fmt));
             let mut conn = Conn::connect(&opts.host, opts.port)?;
-            tap_text::run(&mut conn, text)
+            let body = conn.call(&format!("tap x={x} y={y}"))?;
+            if let Some(e) = errors::parse_err(&body) {
+                return Err(reporter.fail("tap", e));
+            }
+            reporter.ok("tap", &String::from_utf8_lossy(&body),
+                json_out::Obj::new().n("x", *x as i64).n("y", *y as i64))
         }
         Cmd::Snapshot => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
@@ -723,9 +868,19 @@ fn run(opts: &Opts) -> io::Result<()> {
         Cmd::Devices => print_devices(),
         Cmd::StateDaemon => state_cache::run_daemon(&opts.host, opts.port),
         Cmd::Shell => shell::run(&opts.host, opts.port),
-        Cmd::Query(sel) => run_query(&opts.host, opts.port, sel),
+        Cmd::Find { selector, flags } => {
+            run_find(&opts.host, opts.port, opts.out_fmt, selector, flags)
+        }
         Cmd::See(dest) => run_see(&opts.host, opts.port, dest.as_deref()),
-        Cmd::Wait(spec) => run_wait(&opts.host, opts.port, spec),
+        Cmd::Wait { spec, flags } => {
+            run_wait(&opts.host, opts.port, opts.out_fmt, spec, flags)
+        }
+        Cmd::Run { script, flags } => {
+            run_script::run(&opts.host, opts.port, opts.out_fmt, script.as_deref(), flags.clone())
+        }
+        Cmd::Act(a) => act::run(&opts.host, opts.port, opts.out_fmt, a),
+        Cmd::Fan { serials, argv } => fan::run(opts.out_fmt, serials, argv),
+        Cmd::Init { path } => init::run(path.as_deref()),
         Cmd::Cp { src, dst } => run_cp(&opts.host, opts.port, src, dst),
         Cmd::ShowPkg(pkg) => run_show_pkg(&opts.host, opts.port, pkg),
         Cmd::Info => run_info(&opts.host, opts.port),
@@ -840,87 +995,104 @@ fn run(opts: &Opts) -> io::Result<()> {
             let wire = format!("calendar from={from} to={to} limit={limit}");
             provider::run(&mut conn, &wire, *json, &[], &[])
         }
-        Cmd::Submit(sel) => {
+        Cmd::Submit { sel, flags } => run_submit(opts, sel.as_deref(), flags),
+        Cmd::Paste  { sel, flags } => run_paste (opts, sel.as_deref(), flags),
+        Cmd::TypeFocused { text, flags } => run_type_focused(opts, text, flags),
+        Cmd::TypeInto { selector, text, flags } => run_type_into(opts, selector, text, flags),
+        Cmd::Ping => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
-            let wire = match sel {
-                Some(s) => format!("submit {s}"),
-                None => "submit".to_string(),
-            };
-            let body = conn.call(&wire)?;
-            if body.starts_with(b"ERR:") {
-                return Err(io::Error::other(String::from_utf8_lossy(&body).into_owned()));
-            }
-            let mut out = io::stdout().lock();
-            out.write_all(&body)?;
-            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
-            out.flush()
-        }
-        Cmd::Paste(sel) => {
-            let mut conn = Conn::connect(&opts.host, opts.port)?;
-            let wire = match sel {
-                Some(s) => format!("paste {s}"),
-                None => "paste".to_string(),
-            };
-            let body = conn.call(&wire)?;
-            if body.starts_with(b"ERR:") {
-                return Err(io::Error::other(String::from_utf8_lossy(&body).into_owned()));
-            }
-            let mut out = io::stdout().lock();
-            out.write_all(&body)?;
-            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
-            out.flush()
-        }
-        Cmd::TypeInto { selector, text } => {
-            // Translate to a daemon wire command: node_set_text <selector> value=TEXT.
-            let mut conn = Conn::connect(&opts.host, opts.port)?;
-            let wire = format!("node_set_text {selector} value={text:?}");
-            let body = conn.call(&wire)?;
-            if body.starts_with(b"ERR:") {
-                return Err(io::Error::other(String::from_utf8_lossy(&body).into_owned()));
-            }
-            let mut out = io::stdout().lock();
-            out.write_all(&body)?;
-            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
-            out.flush()
-        }
-        _ => {
-            let mut conn = Conn::connect(&opts.host, opts.port)?;
-            let wire: String = match &opts.cmd {
-                Cmd::Ping => "ping".into(),
-                Cmd::Quit => "quit".into(),
-                Cmd::Input(wire) => wire.clone(),
-                Cmd::Bench { .. }
-                | Cmd::TapText(_)
-                | Cmd::Snapshot
-                | Cmd::Screen
-                | Cmd::Adb(_)
-                | Cmd::Connect(_)
-                | Cmd::Disconnect(_)
-                | Cmd::Devices
-                | Cmd::StateDaemon
-                | Cmd::Shell
-                | Cmd::Query(_)
-                | Cmd::See(_)
-                | Cmd::Wait(_)
-                | Cmd::Cp { .. }
-                | Cmd::ShowPkg(_)
-                | Cmd::Info
-                | Cmd::TypeInto { .. }
-                | Cmd::SettingsListAll
-                | Cmd::Submit(_)
-                | Cmd::Paste(_)
-                | Cmd::Links(_)
-                | Cmd::Sms { .. }
-                | Cmd::Calls { .. }
-                | Cmd::Contacts { .. }
-                | Cmd::Calendar { .. }
-                | Cmd::Notif { .. }
-                | Cmd::Clip { .. }
-                | Cmd::Ui { .. } => unreachable!(),
-            };
-            let body = conn.call(&wire)?;
+            let body = conn.call("ping")?;
             write_response(&opts.cmd, &body)
         }
+        Cmd::Quit => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let body = conn.call("quit")?;
+            write_response(&opts.cmd, &body)
+        }
+        Cmd::Input(wire) => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            let body = conn.call(wire)?;
+            write_response(&opts.cmd, &body)
+        }
+    }
+}
+
+fn run_submit(opts: &Opts, sel: Option<&str>, flags: &flags::ActionFlags) -> io::Result<()> {
+    let reporter = output::Reporter::new(flags.out(opts.out_fmt));
+    let mut conn = Conn::connect(&opts.host, opts.port)?;
+    let mut attempts = flags.total_attempts();
+    loop {
+        let wire = match sel {
+            Some(s) => format!("submit {s}"),
+            None => "submit".into(),
+        };
+        let body = conn.call(&wire)?;
+        if let Some(e) = errors::parse_err(&body) {
+            attempts = attempts.saturating_sub(1);
+            if attempts > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(flags.retry_delay_ms));
+                continue;
+            }
+            return Err(reporter.fail("submit", e));
+        }
+        return reporter.ok("submit", &String::from_utf8_lossy(&body).trim_end(),
+            json_out::Obj::new().opt_s("selector", sel));
+    }
+}
+
+fn run_paste(opts: &Opts, sel: Option<&str>, flags: &flags::ActionFlags) -> io::Result<()> {
+    let reporter = output::Reporter::new(flags.out(opts.out_fmt));
+    let mut conn = Conn::connect(&opts.host, opts.port)?;
+    let mut attempts = flags.total_attempts();
+    loop {
+        let wire = match sel {
+            Some(s) => format!("paste {s}"),
+            None => "paste".into(),
+        };
+        let body = conn.call(&wire)?;
+        if let Some(e) = errors::parse_err(&body) {
+            attempts = attempts.saturating_sub(1);
+            if attempts > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(flags.retry_delay_ms));
+                continue;
+            }
+            return Err(reporter.fail("paste", e));
+        }
+        return reporter.ok("paste", &String::from_utf8_lossy(&body).trim_end(),
+            json_out::Obj::new().opt_s("selector", sel));
+    }
+}
+
+fn run_type_focused(opts: &Opts, text: &str, flags: &flags::ActionFlags) -> io::Result<()> {
+    let reporter = output::Reporter::new(flags.out(opts.out_fmt));
+    let mut conn = Conn::connect(&opts.host, opts.port)?;
+    let body = conn.call(&format!("text {text}"))?;
+    if let Some(e) = errors::parse_err(&body) {
+        return Err(reporter.fail("type", e));
+    }
+    reporter.ok("type", &String::from_utf8_lossy(&body).trim_end(),
+        json_out::Obj::new().s("text", text))
+}
+
+fn run_type_into(
+    opts: &Opts, selector: &str, text: &str, flags: &flags::ActionFlags,
+) -> io::Result<()> {
+    let reporter = output::Reporter::new(flags.out(opts.out_fmt));
+    let mut conn = Conn::connect(&opts.host, opts.port)?;
+    let mut attempts = flags.total_attempts();
+    loop {
+        // Daemon wire command: node_set_text <selector> value="..."
+        let body = conn.call(&format!("node_set_text {selector} value={text:?}"))?;
+        if let Some(e) = errors::parse_err(&body) {
+            attempts = attempts.saturating_sub(1);
+            if attempts > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(flags.retry_delay_ms));
+                continue;
+            }
+            return Err(reporter.fail("type", e));
+        }
+        return reporter.ok("type", &String::from_utf8_lossy(&body).trim_end(),
+            json_out::Obj::new().s("selector", selector).s("text", text));
     }
 }
 
@@ -1005,34 +1177,293 @@ fn run_see(host: &str, port: u16, dest: Option<&str>) -> io::Result<()> {
     Ok(())
 }
 
-/// `hs wait <spec>` — smart-dispatch on `spec` shape.
-fn run_wait(host: &str, port: u16, spec: &str) -> io::Result<()> {
+/// `hs wait <spec>` — smart-dispatch on `spec` shape. `flags` lets RPA
+/// scripts override the daemon-side default (10 s) so long-running things
+/// like cold app launches don't silently hit the timeout.
+fn run_wait(
+    host: &str,
+    port: u16,
+    out_fmt: flags::OutFmt,
+    spec: &str,
+    f: &flags::ActionFlags,
+) -> io::Result<()> {
+    let reporter = output::Reporter::new(f.out(out_fmt));
     let spec = spec.trim();
     // "Nms" / "Ns" — sleep client-side, no daemon hop needed.
     if let Some(ms) = parse_duration_ms(spec) {
         std::thread::sleep(std::time::Duration::from_millis(ms));
-        return Ok(());
+        return reporter.ok("wait", "ok",
+            json_out::Obj::new().n("slept_ms", ms as i64));
     }
     let mut conn = Conn::connect(host, port)?;
+    let timeout_ms = f.timeout_ms.unwrap_or(10_000);
     let wire: String = if let Some(rest) = spec.strip_prefix("idle") {
         let rest = rest.trim();
-        if rest.is_empty() {
-            "wait_for_idle idle_ms=200 timeout_ms=5000".into()
+        let idle_ms = if rest.is_empty() {
+            200
         } else if let Some(ms) = parse_duration_ms(rest) {
-            format!("wait_for_idle idle_ms={ms} timeout_ms=10000")
+            ms
         } else {
             return Err(io::Error::other(format!("wait idle: bad duration '{rest}'")));
-        }
+        };
+        format!("wait_for_idle idle_ms={idle_ms} timeout_ms={timeout_ms}")
     } else if is_component(spec) || is_pkg(spec) {
-        format!("wait_for_activity n={spec} timeout_ms=10000")
+        format!("wait_for_activity n={spec} timeout_ms={timeout_ms}")
     } else {
-        format!("wait_for_text text={spec:?} timeout_ms=10000")
+        format!("wait_for_text text={spec:?} timeout_ms={timeout_ms}")
     };
-    let body = conn.call(&wire)?;
-    let mut out = io::stdout().lock();
-    out.write_all(&body)?;
-    if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
-    out.flush()
+    // Retry layer: timeout exhaustion gets retried `retries` additional
+    // times. For most waits this is a no-op (retries=0), but it lets RPA
+    // scripts chain `--timeout 2s --retries 5` for cheap polling.
+    let mut attempts = f.total_attempts();
+    loop {
+        let body = conn.call(&wire)?;
+        if let Some(e) = errors::parse_err(&body) {
+            attempts = attempts.saturating_sub(1);
+            if attempts > 0 && e.code == errors::ErrCode::Timeout {
+                std::thread::sleep(std::time::Duration::from_millis(f.retry_delay_ms));
+                continue;
+            }
+            return Err(reporter.fail("wait", e));
+        }
+        return reporter.ok("wait", &String::from_utf8_lossy(&body).trim_end(),
+            json_out::Obj::new().s("spec", spec).n("timeout_ms", timeout_ms as i64));
+    }
+}
+
+/// `hs find SELECTOR` — match a CSS-like selector against the current
+/// dump_active tree and print one node summary per match. Honours
+/// --visible/--clickable/--enabled/--unique/--nth.
+fn run_find(
+    host: &str,
+    port: u16,
+    out_fmt: flags::OutFmt,
+    sel: &str,
+    f: &flags::ActionFlags,
+) -> io::Result<()> {
+    let reporter = output::Reporter::new(f.out(out_fmt));
+    let selectors = match selector::Selector::parse(sel) {
+        Ok(s) => s,
+        Err(e) => return Err(reporter.fail("find",
+            errors::ErrInfo::new(errors::ErrCode::BadArg, e))),
+    };
+    let mut conn = Conn::connect(host, port)?;
+    let body = conn.call("dump_active")?;
+    if let Some(e) = errors::parse_err(&body) {
+        return Err(reporter.fail("find", e));
+    }
+    let text = std::str::from_utf8(&body)
+        .map_err(|e| io::Error::other(format!("dump not utf-8: {e}")))?;
+    let json = json::parse(text)
+        .map_err(|e| io::Error::other(format!("dump not json: {e}")))?;
+    let ctx = selector::MatchCtx::new(&json);
+    let mut matches = selector::find_all_with(&ctx, &selectors);
+    selector::apply_filters(&mut matches, f);
+
+    if matches.is_empty() {
+        return Err(reporter.fail("find",
+            errors::ErrInfo::new(errors::ErrCode::NotFound,
+                format!("no node matched '{sel}'"))));
+    }
+    if f.require_unique && matches.len() > 1 {
+        return Err(reporter.fail("find",
+            errors::ErrInfo::new(errors::ErrCode::Ambiguous,
+                format!("--unique: '{sel}' matched {} nodes", matches.len()))));
+    }
+    if let Some(n) = f.nth {
+        if n == 0 || n > matches.len() {
+            return Err(reporter.fail("find",
+                errors::ErrInfo::new(errors::ErrCode::NotFound,
+                    format!("--nth {n} out of range (have {})", matches.len()))));
+        }
+        let picked = matches[n - 1];
+        matches.clear();
+        matches.push(picked);
+    }
+
+    // Output: either one human row per match, or one JSON line per match
+    // (so machine consumers can read with --json | jq -c).
+    match f.out(out_fmt) {
+        flags::OutFmt::Human => {
+            let mut out = io::stdout().lock();
+            for n in &matches {
+                write_find_row(&mut out, n)?;
+            }
+            out.flush()?;
+        }
+        flags::OutFmt::Json => {
+            let mut out = io::stdout().lock();
+            for n in &matches {
+                let row = find_row_obj(n).finish();
+                let line = json_out::Obj::new()
+                    .s("verb", "find")
+                    .b("ok", true)
+                    .raw("result", &row)
+                    .finish();
+                writeln!(out, "{line}")?;
+            }
+            out.flush()?;
+        }
+    }
+    Ok(())
+}
+
+fn write_find_row(out: &mut io::StdoutLock<'_>, n: &json::Value) -> io::Result<()> {
+    let cls = selector::get_str(n, "cls").unwrap_or("");
+    let id  = selector::get_str(n, "rid").unwrap_or("");
+    let t   = selector::get_str(n, "text").unwrap_or("");
+    let d   = selector::get_str(n, "desc").unwrap_or("");
+    let bs  = match selector::bounds(n) {
+        Some((x1, y1, x2, y2)) => {
+            let cx = (x1 + x2) / 2;
+            let cy = (y1 + y2) / 2;
+            format!("[{x1},{y1}][{x2},{y2}] center=({cx},{cy})")
+        }
+        None => "[]".into(),
+    };
+    writeln!(out, "{bs}\tclass={cls}\tid={id}\ttext={t:?}\tdesc={d:?}")
+}
+
+fn find_row_obj(n: &json::Value) -> json_out::Obj {
+    let mut o = json_out::Obj::new()
+        .s("class", selector::get_str(n, "cls").unwrap_or(""))
+        .s("id",    selector::get_str(n, "rid").unwrap_or(""))
+        .s("text",  selector::get_str(n, "text").unwrap_or(""))
+        .s("desc",  selector::get_str(n, "desc").unwrap_or(""))
+        .s("flags", selector::get_str(n, "flags").unwrap_or(""));
+    if let Some((x1, y1, x2, y2)) = selector::bounds(n) {
+        let cx = (x1 + x2) / 2;
+        let cy = (y1 + y2) / 2;
+        o = o.n("x1", x1).n("y1", y1).n("x2", x2).n("y2", y2)
+             .n("cx", cx).n("cy", cy);
+    }
+    o
+}
+
+/// Dispatch a verb line parsed inside `hs run`. Re-uses the one-shot verb
+/// parser, then routes the cmd through a session-aware handler when one
+/// exists (TapText, Find, Wait, …) or the standard one-shot path otherwise.
+pub(crate) fn dispatch_session_verb(
+    sess: &mut session::Session,
+    argv: &[String],
+) -> io::Result<()> {
+    let opts = match parse_args(argv) {
+        Ok(o) => o,
+        Err(e) => return Err(io::Error::other(e)),
+    };
+    // Pull defaults from the session unless the verb line set its own.
+    match opts.cmd {
+        Cmd::TapText { query, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            sess.defaults = flags.clone();
+            let reporter = output::Reporter::new(flags.out(sess.default_out));
+            tap_text::run_session(sess, &query, &reporter, "tap")
+        }
+        Cmd::TapXY { x, y, flags } => {
+            let reporter = output::Reporter::new(flags.out(sess.default_out));
+            let body = sess.conn.call(&format!("tap x={x} y={y}"))?;
+            if let Some(e) = errors::parse_err(&body) {
+                return Err(reporter.fail("tap", e));
+            }
+            reporter.ok("tap", &String::from_utf8_lossy(&body).trim_end(),
+                json_out::Obj::new().n("x", x as i64).n("y", y as i64))
+        }
+        Cmd::Wait { spec, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            run_wait(&sess.peer_host(), sess.peer_port(),
+                sess.default_out, &spec, &flags)
+        }
+        Cmd::Find { selector: sel, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            run_find(&sess.peer_host(), sess.peer_port(),
+                sess.default_out, &sel, &flags)
+        }
+        Cmd::Submit { sel, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            let reporter = output::Reporter::new(flags.out(sess.default_out));
+            let wire = match &sel {
+                Some(s) => format!("submit {s}"),
+                None => "submit".into(),
+            };
+            let body = sess.conn.call(&wire)?;
+            if let Some(e) = errors::parse_err(&body) {
+                return Err(reporter.fail("submit", e));
+            }
+            reporter.ok("submit", &String::from_utf8_lossy(&body).trim_end(),
+                json_out::Obj::new().opt_s("selector", sel.as_deref()))
+        }
+        Cmd::Paste { sel, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            let reporter = output::Reporter::new(flags.out(sess.default_out));
+            let wire = match &sel {
+                Some(s) => format!("paste {s}"),
+                None => "paste".into(),
+            };
+            let body = sess.conn.call(&wire)?;
+            if let Some(e) = errors::parse_err(&body) {
+                return Err(reporter.fail("paste", e));
+            }
+            reporter.ok("paste", &String::from_utf8_lossy(&body).trim_end(),
+                json_out::Obj::new().opt_s("selector", sel.as_deref()))
+        }
+        Cmd::TypeFocused { text, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            let reporter = output::Reporter::new(flags.out(sess.default_out));
+            let body = sess.conn.call(&format!("text {text}"))?;
+            if let Some(e) = errors::parse_err(&body) {
+                return Err(reporter.fail("type", e));
+            }
+            reporter.ok("type", &String::from_utf8_lossy(&body).trim_end(),
+                json_out::Obj::new().s("text", &text))
+        }
+        Cmd::TypeInto { selector, text, mut flags } => {
+            merge_session_defaults(&mut flags, sess);
+            let reporter = output::Reporter::new(flags.out(sess.default_out));
+            let body = sess.conn.call(&format!("node_set_text {selector} value={text:?}"))?;
+            if let Some(e) = errors::parse_err(&body) {
+                return Err(reporter.fail("type", e));
+            }
+            reporter.ok("type", &String::from_utf8_lossy(&body).trim_end(),
+                json_out::Obj::new().s("selector", &selector).s("text", &text))
+        }
+        Cmd::Input(wire) => {
+            let body = sess.conn.call(&wire)?;
+            if let Some(e) = errors::parse_err(&body) {
+                let reporter = output::Reporter::new(sess.default_out);
+                return Err(reporter.fail("do", e));
+            }
+            let mut out = io::stdout().lock();
+            out.write_all(&body)?;
+            if body.last() != Some(&b'\n') { out.write_all(b"\n")?; }
+            out.flush()
+        }
+        other => {
+            // For verbs that aren't session-aware yet, build a fresh Opts
+            // and reuse the one-shot dispatch. We deliberately lose the
+            // warm-socket benefit here — but it's still strictly better
+            // than the user spawning a child `hs` process per line.
+            let synthetic = Opts {
+                host: sess.peer_host(),
+                port: sess.peer_port(),
+                out_fmt: sess.default_out,
+                cmd: other,
+            };
+            run(&synthetic)
+        }
+    }
+}
+
+/// Apply session-level defaults to a verb-line flags struct: only fields
+/// the verb didn't set itself get inherited. Lets `set timeout=8s` at the
+/// top of a script flow into every subsequent `tap`/`wait`/etc.
+fn merge_session_defaults(f: &mut flags::ActionFlags, sess: &session::Session) {
+    if f.timeout_ms.is_none() { f.timeout_ms = sess.defaults.timeout_ms; }
+    if f.retries == 0           { f.retries = sess.defaults.retries; }
+    if f.retry_delay_ms == 200  { f.retry_delay_ms = sess.defaults.retry_delay_ms; }
+    if !f.require_visible       { f.require_visible   = sess.defaults.require_visible; }
+    if !f.require_clickable     { f.require_clickable = sess.defaults.require_clickable; }
+    if !f.require_enabled       { f.require_enabled   = sess.defaults.require_enabled; }
+    if f.out_fmt.is_none()      { f.out_fmt = sess.defaults.out_fmt; }
 }
 
 /// Parse "Nms", "Ns" (where N is unsigned int).
@@ -1311,7 +1742,7 @@ fn write_response(cmd: &Cmd, body: &[u8]) -> io::Result<()> {
     // Trailing newline only for text commands on a terminal — never for binary.
     let is_text = matches!(
         cmd,
-        Cmd::Ping | Cmd::Quit | Cmd::Input(_) | Cmd::Bench { .. } | Cmd::Query(_)
+        Cmd::Ping | Cmd::Quit | Cmd::Input(_) | Cmd::Bench { .. } | Cmd::Find { .. }
     );
     if is_text && !body.is_empty() && body[body.len() - 1] != b'\n' {
         out.write_all(b"\n")?;

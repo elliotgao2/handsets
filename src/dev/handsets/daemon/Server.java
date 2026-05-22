@@ -76,7 +76,7 @@ public final class Server {
                     break;
                 }
                 if (len <= 0 || len > MAX_CMD) {
-                    writeFrame(out, errBytes("bad-length"));
+                    writeFrame(out, errBytes("BAD_ARG:bad-length:" + len));
                     break;
                 }
                 byte[] buf = new byte[len];
@@ -275,7 +275,7 @@ public final class Server {
                         System.exit(0);
                         return;
                     default:
-                        resp = errBytes("unknown-cmd:" + head);
+                        resp = errBytes("UNKNOWN_CMD:" + head);
                 }
                 writeFrame(out, resp);
             }
@@ -290,7 +290,7 @@ public final class Server {
         try {
             return h.dumper.dumpAll();
         } catch (Throwable t) {
-            return "ERR:dump-failed:" + t.getClass().getSimpleName() + ":" + t.getMessage();
+            return "ERR:INTERNAL:dump-failed:" + t.getClass().getSimpleName() + ":" + t.getMessage();
         }
     }
 
@@ -298,7 +298,7 @@ public final class Server {
         try {
             return h.dumper.dumpActive();
         } catch (Throwable t) {
-            return "ERR:dump-failed:" + t.getClass().getSimpleName() + ":" + t.getMessage();
+            return "ERR:INTERNAL:dump-failed:" + t.getClass().getSimpleName() + ":" + t.getMessage();
         }
     }
 
@@ -825,7 +825,7 @@ public final class Server {
         long idle    = longArg(cmd, "idle_ms", DEFAULT_IDLE_MS);
         long timeout = longArg(cmd, "timeout_ms", DEFAULT_TIMEOUT_MS);
         long elapsed = h.uiEvents.waits().awaitIdle(idle, timeout);
-        if (elapsed < 0) return errBytes("timeout");
+        if (elapsed < 0) return errBytes("TIMEOUT:wait_for_idle:idle_ms=" + idle + " timeout_ms=" + timeout);
         return utf8("ok elapsed=" + elapsed);
     }
 
@@ -842,7 +842,7 @@ public final class Server {
                 return found[0] != null;
             }
         }, timeout);
-        if (elapsed < 0) return errBytes("timeout");
+        if (elapsed < 0) return errBytes("TIMEOUT:wait_for_text:" + text);
         android.graphics.Rect r = new android.graphics.Rect();
         found[0].getBoundsInScreen(r);
         return utf8("ok x=" + r.left + " y=" + r.top
@@ -873,7 +873,7 @@ public final class Server {
                 return s.equals(component) || s.startsWith(pkgPrefix);
             }
         }, timeout);
-        if (elapsed < 0) return errBytes("timeout");
+        if (elapsed < 0) return errBytes("TIMEOUT:wait_for_activity:" + component);
         return utf8("ok elapsed=" + elapsed);
     }
 
@@ -886,9 +886,9 @@ public final class Server {
         h.uiEvents.waits().touch();   // measure idle from after the tap
         h.input.tap(x, y);
         long el = h.uiEvents.waits().awaitIdle(idle, timeout);
-        if (el < 0) return errBytes("tap-then-timeout");
+        if (el < 0) return errBytes("TIMEOUT:tap_and_dump");
         try { return utf8(h.dumper.dumpActive()); }
-        catch (Throwable t) { return errBytes("dump-failed:" + t.getMessage()); }
+        catch (Throwable t) { return errBytes("INTERNAL:dump-failed:" + t.getMessage()); }
     }
 
     private byte[] runTapAndSettle(String cmd) {
