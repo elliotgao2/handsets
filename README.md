@@ -32,20 +32,6 @@ ok elapsed=412
 
 `ui → label → tap → wait`. Pipe `hs ui` into a model, take the label, hand it back.
 
-## Numbers
-
-Same emulator, `hs` warm-socket vs fresh `adb` invocation, `n=50`:
-
-```
-hs show         0.21 µs   push-mirror local read
-hs prop KEY     1.6  ms   vs adb shell getprop      46 ms   →  29×
-hs show top     2.0  ms   vs dumpsys window         86 ms   →  43×
-hs info         2.5  ms   vs N getprops + dumpsys  200+ ms  →  80×
-hs see x.jpg    7.7  ms   vs adb exec-out screencap 705 ms  →  92×
-```
-
-Reproduce: `hs bench -n 50`. Full table and methodology in [docs/benchmark.md](docs/benchmark.md).
-
 ## How
 
 ```
@@ -91,16 +77,17 @@ hs wait  "Dashboard"                               --timeout 15s
 
 Vocabulary: `[a=v]` `[a~=sub]` `[a^=pre]` `[a$=suf]` · `:visible :clickable :enabled :focused :checked` · `:has-text("x") :text-is("x")` · `:in(SEL) :below(SEL) :right-of(SEL) :near(SEL, PX)`. Comma is OR. Recipes: [docs/cookbook.md](docs/cookbook.md).
 
-## vs uiautomator2, Appium
+## vs adb, uiautomator2, Appium
 
-|  | **Handsets** | uiautomator2 | Appium |
-|---|---|---|---|
-| Single-call latency | **2–7 ms** | 30–100 ms | 100–500 ms |
-| On-device install | **1 jar (~few hundred KB)** | 2 APKs + `atx-agent` | driver APK + Node server |
-| Wire | TCP, length-prefixed binary | HTTP/JSON | WebDriver |
-| Driven from | **any language via subprocess** | Python only | multi-lang via WebDriver |
+|  | **Handsets** | `adb shell` | uiautomator2 | Appium |
+|---|---|---|---|---|
+| Single-call latency | **2–7 ms** | 40–700 ms | 30–100 ms | 100–500 ms |
+| Tap by label, not coords | **yes** | no | yes | yes |
+| On-device install | **1 jar (~few hundred KB)** | none | 2 APKs + `atx-agent` | driver APK + Node server |
+| Wire | TCP, length-prefixed binary | ADB protocol | HTTP/JSON | WebDriver |
+| Driven from | **any language via subprocess** | shell / subprocess | Python only | multi-lang via WebDriver |
 
-The honest tradeoff: u2 and Appium ship recorders, pytest plugins, HTML reports. Handsets is a lean CLI.
+Per-call timings and methodology: [docs/benchmark.md](docs/benchmark.md) (reproduce with `hs bench -n 50`). The honest tradeoff: u2 and Appium ship recorders, pytest plugins, HTML reports. Handsets is a lean CLI.
 
 ## Exit codes
 
