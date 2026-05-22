@@ -40,21 +40,35 @@ impl ErrCode {
         }
     }
 
-    /// Process exit code surfaced to the shell. `0` is reserved for success
-    /// and `1` for general/unclassified failures, so structured codes start
-    /// at 2.
+    /// Process exit code surfaced to the shell.
+    ///
+    /// Eleven distinct exit codes was a 1990s contract: scripts ended up
+    /// either branching on two of them (NOT_FOUND / TIMEOUT) or treating
+    /// everything-non-zero the same. We keep the headline three for cheap
+    /// `case $?` branching and collapse the long tail into a single
+    /// `1 = failure`. The full structured code is still available in
+    /// JSON-mode output as `error.code`, so callers that need fine-grained
+    /// dispatch parse one field instead of memorising a ten-item table.
+    ///
+    ///   0  ok
+    ///   1  general failure (everything below that isn't broken-out)
+    ///   2  NOT_FOUND   — selector matched nothing
+    ///   3  TIMEOUT     — wait budget exhausted
+    ///   4  AMBIGUOUS   — `--unique` saw multiple matches
     pub fn exit_code(self) -> u8 {
         match self {
-            ErrCode::NotFound     => 2,
-            ErrCode::Timeout      => 3,
-            ErrCode::DaemonError  => 4,
-            ErrCode::DeviceGone   => 5,
-            ErrCode::Ambiguous    => 6,
-            ErrCode::Precondition => 7,
-            ErrCode::BadArg       => 8,
-            ErrCode::SecureWindow => 9,
-            ErrCode::UnknownCmd   => 10,
-            ErrCode::Internal     => 11,
+            ErrCode::NotFound  => 2,
+            ErrCode::Timeout   => 3,
+            ErrCode::Ambiguous => 4,
+            // Everything else: keep the structured code in JSON output
+            // (`error.code`), but exit 1 — same as any other shell failure.
+            ErrCode::DaemonError
+            | ErrCode::DeviceGone
+            | ErrCode::Precondition
+            | ErrCode::BadArg
+            | ErrCode::SecureWindow
+            | ErrCode::UnknownCmd
+            | ErrCode::Internal => 1,
         }
     }
 }

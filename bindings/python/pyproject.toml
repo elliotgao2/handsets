@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "handsets"
+version = "0.1.2"
+description = "Pythonic bindings for the Handsets Android control CLI"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Handsets contributors" }]
+requires-python = ">=3.9"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Operating System Kernels :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Homepage = "https://github.com/elliotgao2/handsets"
+Documentation = "https://elliotgao2.github.io/handsets/"
+Source = "https://github.com/elliotgao2/handsets/tree/main/bindings/python"
+
+[tool.setuptools.packages.find]
+where = ["src"]

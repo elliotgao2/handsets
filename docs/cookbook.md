@@ -11,7 +11,7 @@ If you are new to `hs`, start with [Quickstart](#0-quickstart-first-script).
 
 ```bash
 hs use                   # auto-pick the only connected device, start daemon
-hs ui -i                 # see what's tappable on the current screen
+hs ui                    # see what's tappable on the current screen
 hs tap "Continue"        # find by text, tap centre
 hs type "you@x.com"      # type into the focused field
 hs submit                # press the IME Go/Search/Done key
@@ -29,21 +29,25 @@ All ten recipes below build on these verbs plus the shared flag set:
 | `--visible`      | Only match nodes that pass `isVisibleToUser`              |
 | `--clickable`    | Only match nodes the framework considers tappable         |
 | `--enabled`      | Only match enabled nodes                                  |
-| `--unique`       | Fail with exit 6 if more than one match remains           |
+| `--unique`       | Fail with exit 4 (AMBIGUOUS) if more than one match remains |
 | `--nth I`        | Pick the I-th match (1-indexed)                           |
 | `--json`         | Emit `{"verb":..., "ok":..., "result":...}` per line      |
 | `--fresh`        | Force a re-dump (only meaningful inside `hs run`/`shell`) |
 
 Exit codes (so RPA scripts can branch without parsing stderr):
 
-| Code | Meaning           | Code | Meaning            |
-| ---- | ----------------- | ---- | ------------------ |
-| 0    | OK                | 6    | AMBIGUOUS          |
-| 1    | INTERNAL/general  | 7    | PRECONDITION       |
-| 2    | NOT_FOUND         | 8    | BAD_ARG            |
-| 3    | TIMEOUT           | 9    | SECURE_WINDOW      |
-| 4    | DAEMON_ERROR      | 10   | UNKNOWN_CMD        |
-| 5    | DEVICE_GONE       | 11   | INTERNAL (daemon)  |
+| Code | Meaning   | Notes |
+| ---- | --------- | ----- |
+| 0    | OK        | |
+| 1    | failure   | everything below not broken out — see `error.code` in `--json` output |
+| 2    | NOT_FOUND | selector matched nothing |
+| 3    | TIMEOUT   | wait budget exhausted |
+| 4    | AMBIGUOUS | `--unique` saw multiple matches |
+
+The full structured `ErrCode` (`DAEMON_ERROR`, `PRECONDITION`, `BAD_ARG`,
+`SECURE_WINDOW`, `UNKNOWN_CMD`, …) is preserved in `--json` mode as
+`error.code` for callers that want fine-grained dispatch — at the shell
+level there's only ever three things worth branching on.
 
 ---
 
@@ -88,7 +92,7 @@ case $? in
   0)  echo "submitted" ;;
   2)  echo "no Submit button on screen" ;;
   3)  echo "tap acked but UI hung — escalating"; hs see /tmp/hung.jpg ;;
-  6)  echo "ambiguous Submit — narrow the selector" ;;
+  4)  echo "ambiguous Submit — narrow the selector" ;;
   *)  echo "unexpected failure"; exit 1 ;;
 esac
 ```
@@ -158,7 +162,7 @@ relational pseudo-classes:
 hs tap '*[text="OK"]:in(LinearLayout[id~=dialog])' --unique
 
 # The EditText below the "Email" label:
-hs tap '*EditText:below(TextView[text=Email]):visible' --unique
+hs tap 'EditText:below(TextView[text=Email]):visible' --unique
 
 # Buttons near a specific icon:
 hs find 'Button:near(ImageView[desc~=cart], 200)'
@@ -174,7 +178,7 @@ Tap a button and only succeed if the next screen really appears. No more
 
 ```bash
 hs act --tap "Send" --until "Sent" --timeout 8s
-hs act --type [id=q] "claude" --until '*RecyclerView' --timeout 5s
+hs act --type [id=q] "claude" --until 'RecyclerView' --timeout 5s
 hs act --swipe up 300 --until-idle --timeout 2s
 ```
 

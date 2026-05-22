@@ -33,6 +33,7 @@ mod state_cache;
 mod tap_text;
 mod term;
 mod ui_dump;
+mod usage;
 mod xml_dump;
 
 const DEFAULT_HOST: &str = "127.0.0.1";
@@ -66,122 +67,7 @@ fn main() -> ExitCode {
     }
 }
 
-const USAGE: &str = "\
-Usage: hs [--host HOST] [--port PORT] <verb> [args]
-
-  hs                                 list attached devices
-  hs use [SERIAL] [--port N]         connect (or switch) the active device
-  hs drop [SERIAL] [--keep-jar]      disconnect; rm /data/local/tmp/hs.jar
-
-  hs see                             open the live viewer (GUI)
-  hs see foo.jpg | foo.png           save a screenshot at native resolution
-  hs see foo.xml | foo.json          save the UI hierarchy
-
-  hs ui [-i|--json|--xml] [--all]    UI tree dump (human outline by default;
-                                       -i / --interactive = only tappable /
-                                          content-bearing nodes, flat columnar;
-                                       --json = raw daemon JSON,
-                                       --xml  = uiautomator-style XML;
-                                       --all  = every window, not just active)
-  hs find SELECTOR                   CSS-like match over the live tree:
-                                       `Tag[attr=val][attr~=sub]:flag`
-                                       comma = OR. Prints bounds + centre.
-  hs info                            neofetch-style device summary
-  hs show                            device snapshot (cached, ~2ms)
-  hs show top                        top activity component
-  hs show PKG                        package info (path, ...)
-
-  hs apps [--3rd]                    installed packages
-  hs links PKG                       deeplinks declared by PKG (parsed from
-                                       its AndroidManifest.xml directly)
-  hs sms      [inbox|sent|all]   [--limit N] [--json]   recent SMS
-  hs calls    [in|out|missed|all] [--limit N] [--json]   call log
-  hs contacts [--limit N] [--json]                       contacts list
-  hs calendar [--days N | --from MS --to MS] [--limit N] [--json]
-                                                         upcoming events
-  hs notif    [PKG] [--history] [--limit N] [--json]    active notification tray
-                                                         (or recent history)
-  hs clip                            read primary clipboard text
-  hs clip  TEXT                      write TEXT to primary clipboard
-  hs clip  --watch [--interval MS]   stream clipboard changes (one per line)
-  hs open PKG | PKG/.Cls             start activity
-  hs close PKG                       force-stop
-  hs install APK [APK ...]           streamed PackageInstaller session
-  hs uninstall PKG
-
-  hs tap \"Login\"                     find by text/desc, tap centre
-  hs tap X Y                         raw-coordinate tap
-  hs type TEXT                       type into the focused field (KeyEvents)
-  hs type SELECTOR TEXT              ACTION_SET_TEXT on the matching node
-                                       (no virtual keyboard, atomic)
-  hs go back | home | recents | …    key events (case-insensitive)
-  hs swipe left|right|up|down [DUR_MS]   80% screen swipe (daemon picks coords)
-  hs swipe X1 Y1 X2 Y2 [DUR_MS]          raw-coordinate swipe
-  hs submit [SELECTOR]                   press the IME submit/search/go/done
-                                           key on the focused (or matched) field
-  hs paste  [SELECTOR]                   insert the device clipboard into the
-                                           focused (or matched) field
-                                           (write the clipboard with `hs clip TEXT`)
-
-  hs wait idle [Nms|Ns]              wait for the UI to settle
-  hs wait \"Login\"                    wait for that text to appear
-  hs wait PKG | PKG/.Cls             wait for activity (package-prefix)
-  hs wait Nms | Ns                   client-side sleep
-
-  hs cp device:/path /host/path      pull (rsync direction)
-  hs cp /host/path device:/path      push
-
-  hs prop KEY                        getprop
-  hs prop KEY VALUE                  setprop
-  hs settings NS KEY                 settings get
-  hs settings NS KEY VALUE           settings put
-
-  hs logs [--tail N | --follow]      tail logcat (default last 100 lines)
-  hs events                          stream lifecycle events (am monitor)
-
-  hs shell                           interactive REPL (`help`, `exit`, history)
-                                       hs shell  is the canonical verb;
-                                       hs do     is the same thing.
-  hs do <wire-cmd>                   fire one wire command (raw protocol)
-
-  hs run [SCRIPT|-]                  batch CLI verbs over one warm socket;
-                                       `set timeout=8s | retries=2 |
-                                       continue-on-error | dump-ttl=150ms`
-                                       directives, `#` comments, blanks ok
-  hs init [PATH]                     scaffold a starter script.hs
-  hs act --tap SEL|XY --until SPEC   tap (or --type/--key/--swipe) then wait
-       [--until-text TEXT | --until-activity PKG | --until-selector SEL |
-        --until-idle] [--timeout MS] [--retries N]
-  hs fan SERIAL,SERIAL,... -- VERB   run VERB in parallel against each device
-
-Shared action flags (tap, type, find, wait, submit, paste, act):
-  --timeout MS                       per-call wait budget (default daemon 10 s)
-  --retries N [--retry-delay MS]     retry on TIMEOUT / NOT_FOUND
-  --visible | --clickable | --enabled  filter selector matches
-  --unique  | --nth I                disambiguate (exit 6 on ambiguity)
-  --fresh                            force re-dump (hs run / hs shell only)
-  --json                             emit {verb, ok, result, error} per line
-
-Selector pseudo-classes (`hs find`, `hs tap '<SEL>'`):
-  :visible :clickable :enabled :focused :checkable :checked
-  :in(SEL)            descendant of any node matching SEL
-  :below(SEL)         top edge ≥ anchor's bottom edge
-  :right-of(SEL)      left edge ≥ anchor's right edge
-  :near(SEL, PX)      centre-to-centre distance ≤ PX
-
-Exit codes:
-  0 ok  2 NOT_FOUND  3 TIMEOUT  4 DAEMON_ERROR  5 DEVICE_GONE
-  6 AMBIGUOUS  7 PRECONDITION  8 BAD_ARG  9 SECURE_WINDOW  10 UNKNOWN_CMD
-
-Global options:
-  --host HOST                        default 127.0.0.1
-  --port PORT                        default 9008
-  --device | -s SERIAL               route to the daemon for SERIAL
-  --json                             default output to JSON (also HS_FORMAT=json)
-
-Low-level (kept for power users):
-  hs ping  hs snapshot  hs screen  hs bench  hs quit  hs input <subcmd>
-";
+use usage::USAGE;
 
 #[derive(Debug)]
 struct Opts {
@@ -346,6 +232,47 @@ fn suggest(old: &str) -> String {
     }
 }
 
+/// `hs dev <sub>` — explicit namespace for the daemon-debugging verbs.
+/// Bare `hs dev` prints what's available; `hs dev ping` etc. dispatch the
+/// same `Cmd` variants the top-level aliases produce.
+fn parse_dev(rest: &[&str]) -> Result<Cmd, String> {
+    const HELP: &str = "\
+hs dev <sub>:
+  ping              round-trip the daemon socket
+  snapshot          print the cached state JSON
+  screen            print one screenshot frame to stdout
+  bench [-n N]      timed wire-call benchmark (default 50 iterations)
+  quit              ask the daemon to exit (`hs drop` is friendlier)
+  state-daemon      run the host-side state mirror (used by `hs use`)";
+    match rest.split_first() {
+        None => Err(HELP.to_string()),
+        Some((&"ping",         _))   => Ok(Cmd::Ping),
+        Some((&"snapshot",     _))   => Ok(Cmd::Snapshot),
+        Some((&"screen",       _))   => Ok(Cmd::Screen),
+        Some((&"quit",         _))   => Ok(Cmd::Quit),
+        Some((&"state-daemon", _))   => Ok(Cmd::StateDaemon),
+        Some((&"bench",        more)) => parse_bench(more),
+        Some((other, _)) => Err(format!("hs dev: unknown sub-verb '{other}'\n{HELP}")),
+    }
+}
+
+fn parse_bench(rest: &[&str]) -> Result<Cmd, String> {
+    let mut n: u32 = 50;
+    let mut j = 0;
+    while j < rest.len() {
+        match rest[j] {
+            "-n" => {
+                j += 1;
+                n = rest.get(j).ok_or("-n needs a value")?.parse()
+                    .map_err(|_| "invalid -n value")?;
+            }
+            other => return Err(format!("unknown bench arg: {other}")),
+        }
+        j += 1;
+    }
+    Ok(Cmd::Bench { n })
+}
+
 /// Shared arg parser for the simple provider verbs (`sms`, `calls`,
 /// `contacts`): consumes `--limit N` and `--json`, collects anything
 /// else as positional tokens.
@@ -473,12 +400,18 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             Cmd::Find { selector: positional.join(" "), flags }
         }
         Some((&"ui", rest)) => {
-            let mut fmt = UiFormat::Human;
+            // `hs ui` defaults to the flat, agent-friendly interactive
+            // table — that's the 99% caller in an LLM loop and what the
+            // README sells. The indented outline is still available via
+            // `--tree`; `-i` / `--interactive` remain accepted no-ops so
+            // older scripts keep working.
+            let mut fmt = UiFormat::Interactive;
             let mut all = false;
             for tok in rest {
                 match *tok {
                     "--json"            => fmt = UiFormat::Json,
                     "--xml"             => fmt = UiFormat::Xml,
+                    "--tree"            => fmt = UiFormat::Human,
                     "-i" | "--interactive" => fmt = UiFormat::Interactive,
                     "--all"             => all = true,
                     other               => return Err(format!("unknown ui arg: {other}")),
@@ -788,28 +721,17 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             if rest.is_empty() { Cmd::Shell } else { Cmd::Input(rest.join(" ")) }
         }
 
-        // ─── Internal / low-level (kept, undocumented in --help) ─────
+        // ─── Low-level / debugging ───────────────────────────────────
+        // `hs dev <sub>` is the documented namespace; the bare verbs
+        // (`hs ping`, `hs snapshot`, …) stay as undocumented aliases so
+        // older scripts and the test harness don't break.
+        Some((&"dev", rest)) => parse_dev(rest)?,
         Some((&"ping", _))      => Cmd::Ping,
         Some((&"snapshot", _))  => Cmd::Snapshot,
         Some((&"screen", _))    => Cmd::Screen,
         Some((&"quit", _))      => Cmd::Quit,
         Some((&"state-daemon", _)) => Cmd::StateDaemon,
-        Some((&"bench", rest)) => {
-            let mut n: u32 = 50;
-            let mut j = 0;
-            while j < rest.len() {
-                match rest[j] {
-                    "-n" => {
-                        j += 1;
-                        n = rest.get(j).ok_or("-n needs a value")?.parse()
-                            .map_err(|_| "invalid -n value")?;
-                    }
-                    other => return Err(format!("unknown bench arg: {other}")),
-                }
-                j += 1;
-            }
-            Cmd::Bench { n }
-        }
+        Some((&"bench", rest)) => parse_bench(rest)?,
 
         Some((other, _)) => return Err(suggest(other)),
     };

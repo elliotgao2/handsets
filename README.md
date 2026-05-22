@@ -12,7 +12,7 @@
 </p>
 
 - **Fast** — 2–7 ms per call; the daemon stays warm and state is mirrored to a host file for µs reads.
-- **Agent-shaped** — `hs ui -i` returns a flat table of tappable nodes (~10× fewer tokens than XML).
+- **Agent-shaped** — `hs ui` returns a flat table of tappable nodes (~10× fewer tokens than XML).
 - **No app, no root** — one small jar pushed to the device; runs under shell UID via `app_process`.
 
 > macOS or Linux host. No root. No installed app on the phone. Just `adb` on `$PATH`.
@@ -25,7 +25,7 @@
 $ hs use                              # auto-detects device, starts the daemon
 daemon up on tcp:9008
 
-$ hs ui -i                            # flat list of tappable nodes — drop into an LLM
+$ hs ui                               # flat list of tappable nodes — drop into an LLM
 @(540,540)   click             EditText    #email        desc="Email"
 @(540,640)   click,password    EditText    #password     desc="Password"
 @(540,860)   click             Button      #continue     "Continue"
@@ -34,7 +34,9 @@ $ hs tap "Continue"                   # text-lookup tap → coords → ACTION_CL
 tapped "Continue" cls=android.widget.Button → ok
 ```
 
-Drop `hs ui -i` into an LLM, get back a label, hand it to `hs tap` — that's the loop.
+Drop `hs ui` into an LLM, get back a label, hand it to `hs tap` — that's the loop.
+(Since v0.1.2, the agent-friendly flat table is the default. `hs ui --tree` gives the
+indented outline; `--xml` / `--json` give the raw uiautomator-style hierarchy.)
 
 ## Why Handsets
 
@@ -97,9 +99,9 @@ $ hs drop                             # tear the daemon down
 
 One small jar is pushed to the device and run under the shell UID — no installed app, no root. The CLI speaks a length-prefixed binary protocol over `adb forward`; the daemon stays warm between calls, and a host-side mirror keeps `~/.handsets/state-<port>.json` in sync via `state_watch`, so reads of cached state are sub-microsecond. See [docs/architecture.md](docs/architecture.md) for the binder/reflection details and the sharp edges.
 
-## `hs ui -i` — the LLM input format
+## `hs ui` — the LLM input format
 
-`uiautomator2`'s `d.dump_hierarchy()` and Appium's `driver.page_source` hand you the full XML — hundreds of KB per screen, mostly layout noise. `hs ui -i` filters and flattens the same tree to only the nodes a human or LLM can actually act on, usually **10–100× less text**:
+`uiautomator2`'s `d.dump_hierarchy()` and Appium's `driver.page_source` hand you the full XML — hundreds of KB per screen, mostly layout noise. `hs ui` filters and flattens the same tree to only the nodes a human or LLM can actually act on, usually **10–100× less text**:
 
 ```
 @(54,160)    click             ImageButton                desc="Back"
@@ -127,7 +129,7 @@ hs find 'Button[text="OK"], Button[text="Continue"]'   # comma = OR
 Relational pseudo-classes anchor matches to nearby or containing nodes:
 
 ```bash
-hs find '*EditText:below(TextView[text=Email])'        # field under a label
+hs find 'EditText:below(TextView[text=Email])'         # field under a label
 hs find 'Button:near(ImageView[desc~=cart], 200)'      # within 200 px
 hs find 'Button[text=OK]:in(LinearLayout[id~=dialog])' # inside a container
 ```
@@ -154,7 +156,7 @@ Every action verb (`tap`, `type`, `find`, `wait`, `submit`, `paste`, `act`) hono
 | `--json` (or `HS_FORMAT=json`)        | `{"verb":…, "ok":…, "result"\|"error":…}` per line     |
 | `--fresh`                             | Force a re-dump inside `hs run`/`shell`                |
 
-Failures map to distinct exit codes (`2 NOT_FOUND`, `3 TIMEOUT`, `4 DAEMON_ERROR`, `5 DEVICE_GONE`, `6 AMBIGUOUS`, `7 PRECONDITION`, `8 BAD_ARG`, `9 SECURE_WINDOW`, `10 UNKNOWN_CMD`), so scripts can branch without parsing stderr. Full table and recipes (login flow, retry-on-flake, two-factor SMS, multi-device fan-out, …) in [docs/cookbook.md](docs/cookbook.md).
+Failures map to a small set of exit codes (`2 NOT_FOUND`, `3 TIMEOUT`, `4 AMBIGUOUS`; everything else collapses to `1`), so scripts can branch on `$?` without parsing stderr. The full structured `ErrCode` is preserved in `--json` output as `error.code` for callers that need fine-grained dispatch. Full recipes (login flow, retry-on-flake, two-factor SMS, multi-device fan-out, …) in [docs/cookbook.md](docs/cookbook.md).
 
 <details>
 <summary><strong>All verbs (click to expand)</strong></summary>
@@ -301,7 +303,7 @@ d.find_element("xpath", "//*[@text='Login']").click()
 | Single-call latency | **2–7 ms** typical | ~30–100 ms | ~100–500 ms |
 | Daemon start | **< 200 ms** via `app_process`, no UIAutomator framework | UIAutomator instrumentation each session | UIAutomator + WebDriver bridge |
 | State reads | **µs from host-mirrored file** (`hs info` / `hs show`) | ms per round-trip | ms+ per round-trip |
-| UI dump for agents | `hs ui -i` flat, **~10× fewer tokens** | full XML | full XML |
+| UI dump for agents | `hs ui` flat, **~10× fewer tokens** | full XML | full XML |
 | On-device install | **push 1 jar** (~few hundred KB) | 2 apks + `atx-agent` | driver apk + Node server |
 | Wire | TCP + length-prefixed binary | HTTP/JSON via `atx-agent` | WebDriver over HTTP |
 | Selector | CSS-like `Tag[attr=val][attr~=sub]:flag` | `d(text=…, className=…)` chained | Selenium strategies |
@@ -314,13 +316,27 @@ Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE integrations, 
 
 Pre-1.0. The CLI surface is stable; the wire protocol may shift between minor versions. See [docs/wire.md](docs/wire.md).
 
+## Language bindings
+
+A first-party Python SDK lives under [`bindings/python/`](bindings/python/) — `pip install handsets`, then:
+
+```python
+from handsets import Session
+with Session() as d:
+    d.tap("Continue")
+    d.wait("Welcome", timeout="15s")
+```
+
+For other languages, drive `hs --json` as a subprocess and parse one JSON line per call. ~30 lines in any host language.
+
 ## Docs
 
-- [Architecture](docs/architecture.md)
-- [Benchmark](docs/benchmark.md)
+- [User guide](docs/index.md) — read this first
 - [Cookbook](docs/cookbook.md) — RPA recipes (login, retry, fan-out, etc.)
-- [Sharp edges](docs/sharp-edges.md)
+- [Architecture](docs/architecture.md)
 - [Wire reference](docs/wire.md)
+- [Sharp edges](docs/sharp-edges.md)
+- [Benchmark](docs/benchmark.md)
 - [Blog](https://elliotgao2.github.io/handsets/blog/) — long-form posts on how Handsets works
 
 ## License

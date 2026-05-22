@@ -10,9 +10,18 @@
 //   [attr$=value]        suffix
 //   [attr]               attribute present (non-empty)
 //   :flag                node has the given a11y flag (clickable, enabled, …)
+//   :has-text("foo")     substring text match (Playwright sugar for [text~=foo])
+//   :text-is("foo")      exact text match    (Playwright sugar for [text=foo])
+//   :in(SEL)             descendant of any node matching SEL
+//   :below(SEL)          top edge ≥ anchor's bottom edge
+//   :right-of(SEL)       left edge ≥ anchor's right edge
+//   :near(SEL, PX)       centre-to-centre distance ≤ PX
 //   Tag[a=v][b=v]:flag   AND-combined
 //
-// Multiple comma-separated selectors run as OR (any matches).
+// Multiple comma-separated selectors run as OR (any matches). The
+// pseudo-class vocabulary intentionally mirrors Playwright's locator API
+// (`getByText`, `near()`, `below()`) so muscle memory transfers from web
+// test code.
 //
 // The matcher walks the JSON tree produced by `dump` / `dump_active` (the
 // nested {cls, pkg, rid, text, desc, bounds, flags, children} objects).
@@ -122,6 +131,7 @@ fn parse_one(s: &str) -> Result<Selector, String> {
             match psd {
                 Pseudo::Flag(c) => flags.push(c),
                 Pseudo::Rel(r)  => relations.push(r),
+                Pseudo::Attr(p) => attrs.push(p),
             }
             i += adv;
         } else if c.is_whitespace() {
@@ -197,6 +207,10 @@ fn normalise_key(k: &str) -> String {
 enum Pseudo {
     Flag(char),
     Rel(Relation),
+    /// `:has-text("foo")` / `:text-is("foo")` — Playwright-style sugar that
+    /// compiles to an `[text~=foo]` / `[text=foo]` attribute predicate so
+    /// the matcher path stays unchanged.
+    Attr(AttrPred),
 }
 
 /// Split `input` on `delim` only at paren-depth 0 / bracket-depth 0 / not
@@ -246,11 +260,38 @@ fn parse_pseudo(s: &str) -> Result<(Pseudo, usize), String> {
         if c.is_ascii_alphabetic() || c == b'-' { i += 1; } else { break; }
     }
     let name = &s[1..i];
-    // Relational pseudo-classes take a `(...)` argument.
+    // Relational pseudo-classes take a `(...)` argument. `:has-text` and
+    // `:text-is` also take an argument but compile to attribute predicates,
+    // not relations — they're Playwright-flavoured sugar over `[text~=…]`
+    // and `[text=…]` so users coming from web automation can keep their
+    // muscle memory.
     if bytes.get(i) == Some(&b'(') {
         let close = find_matching_paren(s, i)
             .ok_or_else(|| format!("unterminated :{name}( argument"))?;
         let inner = &s[i + 1..close];
+        match name {
+            "has-text" => {
+                let val = unquote(inner);
+                if val.is_empty() {
+                    return Err(":has-text needs (\"TEXT\")".into());
+                }
+                return Ok((
+                    Pseudo::Attr(AttrPred { key: "text".into(), op: AttrOp::Substr, val }),
+                    close + 1,
+                ));
+            }
+            "text-is" => {
+                let val = unquote(inner);
+                if val.is_empty() {
+                    return Err(":text-is needs (\"TEXT\")".into());
+                }
+                return Ok((
+                    Pseudo::Attr(AttrPred { key: "text".into(), op: AttrOp::Eq, val }),
+                    close + 1,
+                ));
+            }
+            _ => {}
+        }
         let rel = match name {
             "in"       => Relation::In(Selector::parse(inner)?),
             "below"    => Relation::Below(Selector::parse(inner)?),
@@ -519,6 +560,53 @@ pub(crate) fn apply_filters(matches: &mut Vec<&Value>, f: &crate::flags::ActionF
         }
         true
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_has_text_to_substring_attr() {
+        let sels = Selector::parse("Button:has-text(\"Sign in\")").unwrap();
+        assert_eq!(sels.len(), 1);
+        let s = &sels[0];
+        match &s.class {
+            ClassMatch::Simple(n) => assert_eq!(n, "Button"),
+            other => panic!("expected Simple(\"Button\"), got {other:?}"),
+        }
+        assert_eq!(s.attrs.len(), 1);
+        assert_eq!(s.attrs[0].key, "text");
+        assert_eq!(s.attrs[0].op, AttrOp::Substr);
+        assert_eq!(s.attrs[0].val, "Sign in");
+    }
+
+    #[test]
+    fn parses_text_is_to_eq_attr() {
+        let sels = Selector::parse("Button:text-is(\"OK\")").unwrap();
+        let s = &sels[0];
+        assert_eq!(s.attrs.len(), 1);
+        assert_eq!(s.attrs[0].op, AttrOp::Eq);
+        assert_eq!(s.attrs[0].val, "OK");
+    }
+
+    #[test]
+    fn rejects_empty_has_text_argument() {
+        let err = Selector::parse("Button:has-text(\"\")").unwrap_err();
+        assert!(err.contains("has-text"), "got {err}");
+    }
+
+    #[test]
+    fn keeps_relational_pseudo_classes_intact() {
+        // Ensure adding :has-text / :text-is didn't break the relational path.
+        let sels = Selector::parse("EditText:below(TextView[text=Email])").unwrap();
+        let s = &sels[0];
+        assert_eq!(s.relations.len(), 1);
+        match &s.relations[0] {
+            Relation::Below(_) => {}
+            other => panic!("expected Below(..), got {other:?}"),
+        }
+    }
 }
 
 fn collect_roots<'a>(v: &'a Value) -> Vec<&'a Value> {
