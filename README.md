@@ -19,9 +19,9 @@ $ hs use                              # connect, start the on-device daemon
 daemon up on tcp:9008
 
 $ hs ui                               # flat table of tappable nodes
-@(540,540)   click             EditText    #email        desc="Email"
-@(540,640)   click,password    EditText    #password     desc="Password"
-@(540,860)   click             Button      #continue     "Continue"
+type  EditText  "Email"     #email     540,540
+type  EditText  "Password"  #password  540,640  [password]
+tap   Button    "Continue"  #continue  540,860
 
 $ hs tap "Continue"                   # text-lookup tap
 tapped "Continue" → ok
