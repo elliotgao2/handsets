@@ -34,26 +34,32 @@ pub(crate) fn render_interactive(dump: &Value) -> String {
     for root in collect_roots(dump) {
         collect_interactive(root, &mut rows);
     }
+    // Pad only the structural columns (verb, class). They have bounded
+    // vocabulary and help the eye scan down the table. Label / id /
+    // coords are variable-width and get rendered tight — padding them to
+    // the widest row causes a single outlier (a 200-char label, a
+    // verbose resource-id) to blow whitespace into every other line.
     let verb_w  = rows.iter().map(|r| r.verb.len()).max().unwrap_or(0);
     let class_w = rows.iter().map(|r| r.class.len()).max().unwrap_or(0);
-    let label_w = rows.iter().map(|r| r.label.chars().count()).max().unwrap_or(0).min(64);
-    let id_w    = rows.iter().map(|r| r.id.len()).max().unwrap_or(0);
-    let coord_w = rows.iter().map(|r| r.coords.len()).max().unwrap_or(0);
 
     let mut out = String::with_capacity(8 * 1024);
     for r in rows {
-        let label_pad = label_w.saturating_sub(r.label.chars().count());
         out.push_str(&format!(
-            "{verb:<verb_w$}  {class:<class_w$}  {label}{pad}  {id:<id_w$}  {coords:<coord_w$}",
-            verb   = r.verb,
-            class  = r.class,
-            label  = r.label,
-            pad    = " ".repeat(label_pad),
-            id     = r.id,
-            coords = r.coords,
+            "{verb:<verb_w$}  {class:<class_w$}  {label}",
+            verb  = r.verb,
+            class = r.class,
+            label = r.label,
         ));
+        if !r.id.is_empty() {
+            out.push_str("  ");
+            out.push_str(&r.id);
+        }
+        out.push_str("  ");
+        out.push_str(&r.coords);
         if !r.flags.is_empty() {
-            out.push_str(&format!("  [{}]", r.flags));
+            out.push_str("  [");
+            out.push_str(&r.flags);
+            out.push(']');
         }
         out.push('\n');
     }
