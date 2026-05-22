@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-src/handsets/__init__.py
-src/handsets/errors.py
-src/handsets/session.py
-src/handsets.egg-info/PKG-INFO
-src/handsets.egg-info/SOURCES.txt
-src/handsets.egg-info/dependency_links.txt
-src/handsets.egg-info/top_level.txt

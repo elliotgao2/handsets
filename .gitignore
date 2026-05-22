@@ -10,6 +10,9 @@ target/
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+bindings/python/dist/
+bindings/python/build/
 
 # ── mkdocs build output ─────────────────────────────────────
 /site/
