@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <em>The device control plane you wished <code>adb</code> was.</em>
+  <em>A millisecond-latency CLI for driving Android devices. Built for LLM agents and shell scripts.</em>
 </p>
 
 <p align="center">
@@ -11,7 +11,38 @@
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
+- **Fast** — 2–7 ms per call; the daemon stays warm and state is mirrored to a host file for µs reads.
+- **Agent-shaped** — `hs ui -i` returns a flat table of tappable nodes (~10× fewer tokens than XML).
+- **No app, no root** — one small jar pushed to the device; runs under shell UID via `app_process`.
+
+> macOS or Linux host. No root. No installed app on the phone. Just `adb` on `$PATH`.
+
 ---
+
+## The agent loop
+
+```bash
+$ hs use                              # auto-detects device, starts the daemon
+daemon up on tcp:9008
+
+$ hs ui -i                            # flat list of tappable nodes — drop into an LLM
+@(540,540)   click             EditText    #email        desc="Email"
+@(540,640)   click,password    EditText    #password     desc="Password"
+@(540,860)   click             Button      #continue     "Continue"
+
+$ hs tap "Continue"                   # text-lookup tap → coords → ACTION_CLICK
+tapped "Continue" cls=android.widget.Button → ok
+```
+
+Drop `hs ui -i` into an LLM, get back a label, hand it to `hs tap` — that's the loop.
+
+## Why Handsets
+
+- **vs `adb shell input tap`** — Handsets resolves "tap Continue" without the screen XML round-trip. ~100× faster on screenshot, sub-microsecond on state reads.
+- **vs `uiautomator2`** — No Python client, no `atx-agent` apk; any language can drive it via `subprocess`. 2–7 ms per call vs 30–100 ms.
+- **vs Appium** — No WebDriver server to start. One CLI binary. 2–7 ms vs 100–500 ms.
+
+Full comparison table → [below](#vs-uiautomator2-appium).
 
 ## Install
 
@@ -27,7 +58,13 @@ Then:
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.2 …`.
+macOS and Linux. Pin a version:
+
+```bash
+HANDSETS_VERSION=v0.1.2 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
+```
+
+Don't have adb set up yet? Enable USB debugging in *Developer options*, plug in, and confirm `adb devices` lists your phone.
 
 <details>
 <summary>Build from source</summary>
@@ -45,70 +82,24 @@ ln -s "$PWD/handsets-cli/target/release/hs" /usr/local/bin/hs
 ## Quickstart
 
 ```bash
-$ hs use                              # auto-detects device, starts the daemon
-daemon up on tcp:9008
-
-$ hs info                             # neofetch-style snapshot, 2 ms from local cache
-                Pixel 6 Pro
-                ───────────
-    \       /   OS        Android 15 — SDK 35
-     \ ___ /    Kernel    6.1.75-android14-11
-      /   \     Uptime    2d 4h 30m
-     | o o |    Display   1440 × 3120
-     |  _  |    CPU       8× arm64-v8a
-      \___/     Memory    5.2 / 12.0 GiB
-     |     |    Battery   78%  (screen on, charging)
-     |_____|    Top       com.android.launcher3/.HomeActivity
-      |   |     Daemon    hsd on tcp:9008
-
-$ hs ui -i                            # flat list of tappable nodes (LLM-friendly)
-@(540,540)   click             EditText    #email        desc="Email"
-@(540,640)   click,password    EditText    #password     desc="Password"
-@(540,860)   click             Button      #continue     "Continue"
-
-$ hs tap "Continue"                   # text-lookup tap
-tapped "Continue" cls=android.widget.Button flags=cef bounds=[180,810,900,910] at (540,860) → ok
-
+$ hs use                              # connect, start daemon, mirror state
+$ hs open com.foo/.MainActivity       # launch an app
+$ hs wait com.foo                     # block until it's foregrounded
+$ hs ui -i                            # see what's tappable
+$ hs type "EditText" "user@example.com"   # ACTION_SET_TEXT — atomic, bypasses the IME
+$ hs tap "Continue"
 $ hs submit                           # press the IME action key (Send / Go / Search / Done)
-ok submit
-
-$ hs drop                             # tear down the daemon when done
+$ hs wait "Welcome"                   # block on success text
+$ hs drop                             # tear the daemon down
 ```
 
 ## How it works
 
-The host CLI (`hs`) speaks a length-prefixed binary protocol over an
-`adb forward`-ed TCP socket to a small JVM daemon running on the device
-under `app_process` (shell UID, hidden-API restrictions lifted). The
-daemon stays warm between commands, so there's no per-call cold start.
-A host-side mirror subscribes to the daemon's `state_watch` stream and
-atomically rewrites `~/.handsets/state-<port>.json` on every push, so
-`hs info` / `hs show` are µs-level file reads. See
-[Architecture](docs/architecture.md) for the binder/reflection details
-and the sharp edges.
+One small jar is pushed to the device and run under the shell UID — no installed app, no root. The CLI speaks a length-prefixed binary protocol over `adb forward`; the daemon stays warm between calls, and a host-side mirror keeps `~/.handsets/state-<port>.json` in sync via `state_watch`, so reads of cached state are sub-microsecond. See [docs/architecture.md](docs/architecture.md) for the binder/reflection details and the sharp edges.
 
-## At a glance
+## `hs ui -i` — the LLM input format
 
-```bash
-$ hs                                           # list devices
-$ hs use                                       # connect, start daemon, mirror state
-$ hs info                                      # neofetch-style snapshot (2 ms)
-$ hs see x.jpg                                 # screenshot — 100× faster than adb
-$ hs ui -i                                     # flat list of tappable nodes (LLM-friendly)
-$ hs find 'TextView[text~=Login]'              # CSS-like selector over the live tree
-$ hs open com.foo/.MainActivity && hs wait com.foo
-$ hs type "EditText" "user@example.com"        # ACTION_SET_TEXT, no virtual keyboard
-$ hs do <<'EOF'                                # persistent shell — many cmds, one socket
-  tap_and_dump x=540 y=1500 idle_ms=200
-EOF
-```
-
-## `hs ui -i` — the agent-friendly UI dump
-
-`uiautomator2`'s `d.dump_hierarchy()` and Appium's `driver.page_source`
-hand you the full XML — hundreds of KB per screen, mostly layout noise.
-`hs ui -i` filters and flattens the same tree to only the nodes a human
-or LLM can actually act on, usually **10–100× less text**:
+`uiautomator2`'s `d.dump_hierarchy()` and Appium's `driver.page_source` hand you the full XML — hundreds of KB per screen, mostly layout noise. `hs ui -i` filters and flattens the same tree to only the nodes a human or LLM can actually act on, usually **10–100× less text**:
 
 ```
 @(54,160)    click             ImageButton                desc="Back"
@@ -120,10 +111,53 @@ or LLM can actually act on, usually **10–100× less text**:
 @(540,960)   click             TextView                   "Forgot password?"
 ```
 
-Four columns: **center coords / behaviour tags / class+id / text or desc**.
-Drop into an LLM, get back coords, hand them to `hs tap X Y` — done.
+Four columns: **center coords / behaviour tags / class+id / text or desc**. Drop into an LLM, get back coords, hand them to `hs tap X Y` — done.
 
-## Verbs
+## Selectors
+
+`hs find` queries the live accessibility tree with a CSS-like grammar:
+
+```bash
+hs find 'Button[text="Sign in"]'                       # exact text match
+hs find 'EditText[rid~=email]'                         # id contains "email"
+hs find 'TextView[text~=Login]:clickable'              # flag filter
+hs find 'Button[text="OK"], Button[text="Continue"]'   # comma = OR
+```
+
+Relational pseudo-classes anchor matches to nearby or containing nodes:
+
+```bash
+hs find '*EditText:below(TextView[text=Email])'        # field under a label
+hs find 'Button:near(ImageView[desc~=cart], 200)'      # within 200 px
+hs find 'Button[text=OK]:in(LinearLayout[id~=dialog])' # inside a container
+```
+
+More patterns and end-to-end recipes live in [docs/cookbook.md](docs/cookbook.md).
+
+## RPA essentials
+
+```
+hs run  [SCRIPT|-]                  batch CLI verbs over one warm socket
+hs init [PATH]                      scaffold a starter script.hs
+hs act  --tap "X" --until "Y" …     one-shot tap-then-verify composite
+hs fan  S1,S2 -- VERB ARGS          run VERB in parallel on each device
+```
+
+Every action verb (`tap`, `type`, `find`, `wait`, `submit`, `paste`, `act`) honours a shared flag set, so RPA scripts stop reimplementing retry/filter loops:
+
+| Flag                                  | Purpose                                                |
+| ------------------------------------- | ------------------------------------------------------ |
+| `--timeout MS`                        | Per-call wait budget (overrides 10 s default)          |
+| `--retries N` / `--retry-delay MS`    | Retry on failure                                       |
+| `--visible` / `--clickable` / `--enabled` | Filter the match set                               |
+| `--unique` / `--nth I`                | Disambiguate multiple matches                          |
+| `--json` (or `HS_FORMAT=json`)        | `{"verb":…, "ok":…, "result"\|"error":…}` per line     |
+| `--fresh`                             | Force a re-dump inside `hs run`/`shell`                |
+
+Failures map to distinct exit codes (`2 NOT_FOUND`, `3 TIMEOUT`, `4 DAEMON_ERROR`, `5 DEVICE_GONE`, `6 AMBIGUOUS`, `7 PRECONDITION`, `8 BAD_ARG`, `9 SECURE_WINDOW`, `10 UNKNOWN_CMD`), so scripts can branch without parsing stderr. Full table and recipes (login flow, retry-on-flake, two-factor SMS, multi-device fan-out, …) in [docs/cookbook.md](docs/cookbook.md).
+
+<details>
+<summary><strong>All verbs (click to expand)</strong></summary>
 
 ### Devices
 
@@ -159,53 +193,23 @@ hs clip  TEXT                        write TEXT to primary clipboard
 hs clip  --watch [--interval MS]     stream clipboard changes (one per line)
 ```
 
-The four user-data verbs go directly through `IContentProvider` via
-`getContentProviderExternal` (the same hidden API path `cmd content`
-uses), so they don't need an installed app or `pm grant`. Output is a
-columnar table by default; `--json` re-emits a `[{col: val, …}, …]`
-array.
+The four user-data verbs go directly through `IContentProvider` via `getContentProviderExternal` (the same hidden API path `cmd content` uses), so they don't need an installed app or `pm grant`. Output is a columnar table by default; `--json` re-emits a `[{col: val, …}, …]` array.
 
-Selector examples:
-
-```bash
-hs find 'Button[text="Sign in"]'                       # exact text match
-hs find 'EditText[rid~=email]'                         # id contains "email"
-hs find 'TextView[text~=Login]:clickable'              # flag filter
-hs find 'Button[text="OK"], Button[text="Continue"]'   # comma = OR
-
-# Relational pseudo-classes — anchor matches to nearby / containing nodes:
-hs find '*EditText:below(TextView[text=Email])'        # field under a label
-hs find 'Button:near(ImageView[desc~=cart], 200)'      # within 200 px
-hs find 'Button[text=OK]:in(LinearLayout[id~=dialog])' # inside a container
-```
-
-### RPA workflow
+Example `hs info` output:
 
 ```
-hs run  [SCRIPT|-]                  batch CLI verbs over one warm socket
-hs init [PATH]                      scaffold a starter script.hs
-hs act  --tap "X" --until "Y" …     one-shot tap-then-verify composite
-hs fan  S1,S2 -- VERB ARGS          run VERB in parallel on each device
+                Pixel 6 Pro
+                ───────────
+    \       /   OS        Android 15 — SDK 35
+     \ ___ /    Kernel    6.1.75-android14-11
+      /   \     Uptime    2d 4h 30m
+     | o o |    Display   1440 × 3120
+     |  _  |    CPU       8× arm64-v8a
+      \___/     Memory    5.2 / 12.0 GiB
+     |     |    Battery   78%  (screen on, charging)
+     |_____|    Top       com.android.launcher3/.HomeActivity
+      |   |     Daemon    hsd on tcp:9008
 ```
-
-Every action verb (`tap`, `type`, `find`, `wait`, `submit`, `paste`, `act`)
-honours a shared flag set so RPA scripts stop reimplementing retry/filter
-loops:
-
-```
---timeout MS    --retries N [--retry-delay MS]
---visible       --clickable       --enabled
---unique        --nth I
---json          --fresh
-```
-
-Failures map to distinct exit codes (`2 NOT_FOUND`, `3 TIMEOUT`,
-`4 DAEMON_ERROR`, `5 DEVICE_GONE`, `6 AMBIGUOUS`, `7 PRECONDITION`,
-`8 BAD_ARG`, `9 SECURE_WINDOW`, `10 UNKNOWN_CMD`), and `--json` (or
-`HS_FORMAT=json`) emits `{"verb":…, "ok":…, "result"|"error":…}` per line
-for unattended scripts. See [docs/cookbook.md](docs/cookbook.md) for end-
-to-end recipes (login flow, retry-on-flake, two-factor SMS, multi-device
-fan-out, …).
 
 ### Activity
 
@@ -261,18 +265,16 @@ hs do     [WIRE]                    same REPL, or one-shot raw wire
 
 Raw wire reference: see [docs/wire.md](docs/wire.md).
 
+</details>
+
+<a id="vs-uiautomator2-appium"></a>
+
 ## vs `uiautomator2`, Appium
 
 Handsets wins on two axes:
 
-1. **Latency** — a few milliseconds per call, versus tens to hundreds.
-   Both alternatives wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator)
-   and pay for the framework + an HTTP / WebDriver hop on every call.
-   Handsets keeps a JVM daemon warm under `app_process` and a state
-   mirror on the host, so reads of cached state are sub-microsecond.
-2. **Scriptable from anywhere** — a single CLI binary that any shell,
-   Makefile, language, or LLM agent loop drives via `subprocess`.
-   No Python-only client, no Node server to start.
+1. **Latency** — a few milliseconds per call, versus tens to hundreds. Both alternatives wrap [UIAutomator](https://developer.android.com/training/testing/other-components/ui-automator) and pay for the framework + an HTTP / WebDriver hop on every call. Handsets keeps a JVM daemon warm under `app_process` and a state mirror on the host, so reads of cached state are sub-microsecond.
+2. **Scriptable from anywhere** — a single CLI binary that any shell, Makefile, language, or LLM agent loop drives via `subprocess`. No Python-only client, no Node server to start.
 
 Same "tap the Login button" task, three styles:
 
@@ -306,11 +308,11 @@ d.find_element("xpath", "//*[@text='Login']").click()
 | Bound to | **any language via subprocess** | Python only | multi-lang via WebDriver |
 | Best at | LLM agents, ad-hoc scripts, high-freq small ops | Python device scraping | cross-platform CI suites |
 
-Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE
-integrations, pytest runners, HTML reporting. Handsets is a lean CLI.
-For pytest-style UI regression with reports they're still the smoother
-path. Handsets is built for the case where you only care about
-single-call latency and shell composition.
+Honest tradeoff: uiautomator2 and Appium ship with recorders, IDE integrations, pytest runners, HTML reporting. Handsets is a lean CLI. For pytest-style UI regression with reports they're still the smoother path. Handsets is built for the case where you only care about single-call latency and shell composition.
+
+## Status
+
+Pre-1.0. The CLI surface is stable; the wire protocol may shift between minor versions. See [docs/wire.md](docs/wire.md).
 
 ## Docs
 
