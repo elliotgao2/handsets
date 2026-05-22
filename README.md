@@ -62,7 +62,7 @@ Full protocol: [docs/wire.md](docs/wire.md). Sharp edges and reflection details:
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.2 …`.
+macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.14 …`.
 
 ## Selectors
 

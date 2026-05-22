@@ -36,7 +36,7 @@ hs wait "Welcome"      # block on the next screen
 hs drop                # tear it all down
 ```
 
-`hs ui` (since v0.1.2 the interactive table is the default) returns one line per actionable node:
+`hs ui` (since v0.1.14 the interactive table is the default) returns one line per actionable node:
 
 ```
 type  EditText  "Email"  #email  540,540
