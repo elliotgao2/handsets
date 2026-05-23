@@ -71,6 +71,22 @@ public final class Main {
             h.nodes = new NodeActions(ua);
             h.state = new State(sysCtx, ua, h.uiEvents);
             Server server = new Server(h, port);
+
+            // Warm the dump path before announcing readiness: the first
+            // `dump_active` call loads Dumper/Traverse/JsonOut classes and
+            // JIT-compiles the recursive walker, easily a >1 s tax on a
+            // cold daemon. A sacrificial dump here moves that cost out of
+            // the user's first `hs ui`. Best-effort — if no window is
+            // active yet (rare at this point), we just skip.
+            try {
+                long t0 = System.nanoTime();
+                h.dumper.dumpActive();
+                long ms = (System.nanoTime() - t0) / 1_000_000;
+                System.err.println("hsd warmup: dump_active in " + ms + "ms");
+            } catch (Throwable t) {
+                System.err.println("warn: dump_active warmup failed: " + t);
+            }
+
             System.out.println("hsd ready (sdk=" + android.os.Build.VERSION.SDK_INT + ")");
             server.serve();
         } catch (Throwable t) {
