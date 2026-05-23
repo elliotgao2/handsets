@@ -37,6 +37,7 @@ struct Hit {
     text: String,
     desc: String,
     cls: String,
+    rid: String,
     flags: String,
     bounds: (i32, i32, i32, i32),
     priority: Priority,
@@ -87,20 +88,42 @@ pub fn run_session(
                 let (l, t, r, b) = hit.bounds;
                 let cx = (l + r) / 2;
                 let cy = (t + b) / 2;
-                let ack = sess.conn.call(&format!("tap x={cx} y={cy}"))?;
-                if let Some(e) = parse_err(&ack) {
-                    last_err = Some(e);
-                    continue;
+                // ACTION_CLICK first when the node has a resource-id — it
+                // bypasses the input dispatcher (no DOWN/UP gesture, no 16ms
+                // sleep, no waiting on a busy UI thread) and shaves ~35ms
+                // off the typical tap with much less variance. Custom views
+                // that only register OnTouchListener return `click-rejected`;
+                // we fall back to the gesture path for them so the verb
+                // stays universally applicable.
+                let mut method: &'static str = "tap";
+                let mut acked = false;
+                if !hit.rid.is_empty() && hit.flags.contains('c') {
+                    let ack = sess.conn.call(&format!("node_click id={}", hit.rid))?;
+                    match parse_err(&ack) {
+                        None => { method = "click"; acked = true; }
+                        Some(e) if e.detail.contains("rejected") => {
+                            // Fall through to gesture tap below.
+                        }
+                        Some(e) => { last_err = Some(e); continue; }
+                    }
+                }
+                if !acked {
+                    let ack = sess.conn.call(&format!("tap x={cx} y={cy}"))?;
+                    if let Some(e) = parse_err(&ack) {
+                        last_err = Some(e);
+                        continue;
+                    }
                 }
                 let label = if !hit.text.is_empty() { hit.text.as_str() } else { hit.desc.as_str() };
                 let human = format!(
-                    "tapped {label:?} cls={} flags={} bounds=[{l},{t},{r},{b}] at ({cx},{cy}) → ok",
+                    "tapped {label:?} cls={} flags={} bounds=[{l},{t},{r},{b}] at ({cx},{cy}) via {method} → ok",
                     hit.cls, hit.flags,
                 );
                 return reporter.ok(verb, &human, Obj::new()
                     .s("matched", label)
                     .s("class", &hit.cls)
                     .s("flags", &hit.flags)
+                    .s("method", method)
                     .n("x", cx as i64).n("y", cy as i64)
                     .n("x1", l as i64).n("y1", t as i64)
                     .n("x2", r as i64).n("y2", b as i64));
@@ -163,7 +186,11 @@ fn find_by_id(root: &Value, id_query: &str, flags: &ActionFlags) -> Vec<Hit> {
         }
         // Priority is uniform across id matches — they're already as
         // specific as a selector gets, no text/desc tie-break needed.
-        hits.push(Hit { text, desc, cls, flags: flag_str, bounds, priority: Priority::ExactText });
+        hits.push(Hit {
+            text, desc, cls, rid: rid.to_string(),
+            flags: flag_str, bounds,
+            priority: Priority::ExactText,
+        });
         Some(())
     });
     hits
@@ -182,6 +209,7 @@ fn find_all(root: &Value, query: &str, flags: &ActionFlags) -> Vec<Hit> {
         let desc = obj_get(node, "desc").and_then(as_str).unwrap_or("");
         let pri = classify(text, desc, query, &q_low)?;
         let cls = obj_get(node, "cls").and_then(as_str).unwrap_or("").to_string();
+        let rid = obj_get(node, "rid").and_then(as_str).unwrap_or("").to_string();
         let flag_str = obj_get(node, "flags").and_then(as_str).unwrap_or("").to_string();
         if flags.require_clickable && !flag_str.contains('c') { return Some(()); }
         if flags.require_enabled   && !flag_str.contains('e') { return Some(()); }
@@ -192,7 +220,7 @@ fn find_all(root: &Value, query: &str, flags: &ActionFlags) -> Vec<Hit> {
         hits.push(Hit {
             text: text.to_string(),
             desc: desc.to_string(),
-            cls,
+            cls, rid,
             flags: flag_str,
             bounds,
             priority: pri,
