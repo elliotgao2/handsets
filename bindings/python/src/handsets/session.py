@@ -1,28 +1,35 @@
 """Session — context-managed driver around the ``hs`` CLI.
 
-Each method shells out one ``hs --json`` invocation, parses the single
-JSON line that comes back, and either returns the ``result`` payload or
-raises a typed exception. The implementation is intentionally simple: the
-expensive bits (warm daemon, state mirror) live in the CLI, not here.
+Each method shells out one ``hs --json`` invocation by default, parses
+the single JSON line that comes back, and either returns the ``result``
+payload or raises a typed exception. The expensive bits (warm daemon,
+state mirror) live in the CLI, not here.
 
-Future work: keep an ``hs run -`` subprocess warm across calls and write
-verb lines to its stdin to amortise the ~5 ms per-process startup. The
-API surface won't change.
+For tight loops, :meth:`Session.batch` opens a warm-socket batching
+context that keeps a single ``hs run -`` subprocess alive and pipes
+verb lines on its stdin — collapsing N × 5–10 ms of process startup
+into one startup for the whole batch.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, Iterator, List, Optional, Union
 
 from .errors import HandsetsError, from_payload
 
 Duration = Union[int, float, str]
 """A wait budget. Integers/floats are milliseconds; strings accept the
 same ``250ms`` / ``5s`` suffixes the CLI's ``--timeout`` flag does."""
+
+_DURATION_KEYS = {"timeout", "retry-delay", "dump-ttl"}
+"""Keys whose values should be rendered through :func:`_fmt_duration`
+when emitted as ``set`` directives at the start of a batch."""
 
 
 @dataclass(frozen=True)
@@ -79,6 +86,7 @@ class Session:
         self.binary = binary
         self._connected = False
         self._auto_connect = auto_connect
+        self._batch_proc: Optional[subprocess.Popen] = None
         if shutil.which(binary) is None:
             raise FileNotFoundError(
                 f"`{binary}` not on $PATH — install handsets first "
@@ -119,6 +127,66 @@ class Session:
             argv.append("--keep-jar")
         self._call_text(argv)
         self._connected = False
+
+    # ─── batching ─────────────────────────────────────────────────────
+
+    @contextlib.contextmanager
+    def batch(self, **defaults) -> Iterator["Session"]:
+        """Open a warm-socket batching context.
+
+        Action verbs (``tap``, ``type``, ``fill``, ``submit``, ``paste``,
+        ``wait``, ``go``, ``swipe``) called inside the ``with`` block
+        share one ``hs run -`` subprocess. Verb lines are piped on its
+        stdin; JSON responses are read line-by-line from stdout. Per-call
+        process startup (~5–10 ms each) collapses into one startup for
+        the whole batch.
+
+        Keyword arguments flow into ``set`` directives at the top of the
+        run script — equivalent to ``set timeout=5s`` etc. in a `.hs`
+        file::
+
+            with d.batch(timeout="5s", retries=2) as b:
+                for label in labels:
+                    b.tap(label, visible=True)
+
+        Query verbs (``find``, ``ui``, ``info``) still spawn per-call;
+        their multi-line output would desync the batch read loop and the
+        warm-socket win on a one-off query is small.
+
+        Not re-entrant — nesting raises ``RuntimeError``.
+        """
+        if self._batch_proc is not None:
+            raise RuntimeError("Session.batch() is not re-entrant")
+        if not self._connected:
+            raise RuntimeError("connect the session before opening batch()")
+
+        argv = [*self._argv_prefix(), "run", "-"]
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        self._batch_proc = proc
+
+        try:
+            for key, val in defaults.items():
+                directive = key.replace("_", "-")
+                rendered = _fmt_duration(val) if directive in _DURATION_KEYS \
+                           else str(val)
+                proc.stdin.write(f"set {directive}={rendered}\n")
+            proc.stdin.flush()
+            yield self
+        finally:
+            self._batch_proc = None
+            try:
+                if proc.stdin and not proc.stdin.closed:
+                    proc.stdin.close()
+                proc.wait(timeout=5)
+            except Exception:
+                proc.kill()
 
     # ─── inspection ───────────────────────────────────────────────────
 
@@ -329,10 +397,33 @@ class Session:
         return proc.stdout
 
     def _call_one_json(self, argv: Iterable[str], *, verb: str) -> dict:
+        if self._batch_proc is not None:
+            return self._batch_call_one_json(list(argv), verb=verb)
         rows = self._call_json_lines(argv)
         if not rows:
             raise HandsetsError("no JSON line on stdout", verb=verb)
         row = rows[-1]
+        if not row.get("ok"):
+            raise from_payload(verb, row.get("error", {}))
+        return row.get("result", {})
+
+    def _batch_call_one_json(self, argv: List[str], *, verb: str) -> dict:
+        proc = self._batch_proc
+        assert proc is not None and proc.stdin is not None and proc.stdout is not None
+        line = " ".join(shlex.quote(a) for a in argv)
+        proc.stdin.write(line + "\n")
+        proc.stdin.flush()
+        out = proc.stdout.readline()
+        if not out:
+            tail = proc.stderr.read() if proc.stderr else ""
+            raise HandsetsError(
+                f"batch subprocess closed unexpectedly: {tail.strip()}",
+                verb=verb,
+            )
+        try:
+            row = json.loads(out.strip())
+        except json.JSONDecodeError:
+            raise HandsetsError(f"non-JSON from batch: {out!r}", verb=verb)
         if not row.get("ok"):
             raise from_payload(verb, row.get("error", {}))
         return row.get("result", {})

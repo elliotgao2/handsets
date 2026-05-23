@@ -50,6 +50,25 @@ Everything else (daemon errors, bad arguments, secure-window blocks)
 raises a generic `HandsetsError` whose `.code` attribute carries the
 structured `ErrCode` enum value from the CLI's JSON output.
 
+## Batching
+
+For tight loops, `Session.batch()` opens a warm-socket context that
+keeps one `hs run -` subprocess alive across calls. Per-call process
+startup (~5–10 ms each) collapses into one startup for the whole batch:
+
+```python
+with Session() as d:
+    with d.batch(timeout="5s", retries=2) as b:
+        for label in labels_to_press:
+            b.tap(label, visible=True)
+        b.wait(text="Done")
+```
+
+`batch()` covers the action verbs (`tap`, `type`, `fill`, `submit`,
+`paste`, `wait`, `go`, `swipe`). Query verbs (`find`, `ui`) still spawn
+per-call — they emit multiple JSON lines which would desync the batch
+read loop.
+
 ## Talking to a specific device
 
 ```python

@@ -199,6 +199,18 @@ with Session() as d:
         d.go("back")
 ```
 
+For tight loops, the SDK opens a warm-socket batching context that
+shares one `hs run -` subprocess across calls — per-call process
+startup collapses into one startup for the whole batch:
+
+```python
+with Session() as d:
+    with d.batch(timeout="5s", retries=2) as b:
+        for label in labels:
+            b.tap(label, visible=True)
+        b.wait(text="Done")
+```
+
 For Node, Go, or anything else, drive `hs --json` as a subprocess and
 parse one JSON line per call:
 
