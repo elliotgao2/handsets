@@ -9,6 +9,9 @@ use crate::selector;
 
 struct Row {
     verb:   String,   // "tap" | "fill" | "-"
+    class:  String,   // short class name — EditText / Button / TextView / View / ...
+                      // useful for selector construction even though the verb
+                      // already encodes input-vs-clickable-vs-label.
     label:  String,   // always double-quoted; pulls from text, falls back to content-desc
     id:     String,   // "#name" if the node has a resource-id, else empty
     coords: String,   // bare "cx,cy" — no @, no parens
@@ -21,35 +24,34 @@ struct Row {
 /// when they carry no text and no affordance. Each line reads almost
 /// like the CLI call an agent would issue next:
 ///
-///   tap   "Continue"  #continue   540,860
-///   fill  "Email"     #email      540,540
-///   fill  "Password"  #password   540,640   [password]
+///   tap   Button    "Continue"  #continue   540,860
+///   fill  EditText  "Email"     #email      540,540
+///   fill  EditText  "Password"  #password   540,640   [password]
 ///
 /// The verb column collapses to `-` for nodes that are informational
 /// only (TextView labels, headings) so the layout still aligns and the
 /// agent sees the context without picking a non-actionable target.
-///
-/// We deliberately drop the widget-class column: on Compose / React
-/// Native screens every node is a `View`, so the column is pure noise;
-/// on classic Android the verb already encodes the actionability the
-/// class would have told you (`fill` = input widget, `tap` = clickable,
-/// `-` = informational). Callers that need the exact class can fall
-/// back to `hs find` or `hs ui --json`.
 pub(crate) fn render_interactive(dump: &Value) -> String {
     let mut rows: Vec<Row> = Vec::new();
     for root in collect_roots(dump) {
         collect_interactive(root, &mut rows);
     }
-    // Pad only the structural column (verb). Label / id / coords are
-    // variable-width and render tight — padding them to the widest row
-    // causes a single outlier (a 200-char label, a verbose resource-id)
-    // to blow whitespace into every other line.
-    let verb_w = rows.iter().map(|r| r.verb.len()).max().unwrap_or(0);
+    // Pad only the structural columns (verb, class). They have bounded
+    // vocabulary and help the eye scan down the table. Label / id /
+    // coords are variable-width and render tight — padding them to the
+    // widest row causes a single outlier (a 200-char label, a verbose
+    // resource-id) to blow whitespace into every other line.
+    let verb_w  = rows.iter().map(|r| r.verb.len()).max().unwrap_or(0);
+    let class_w = rows.iter().map(|r| r.class.len()).max().unwrap_or(0);
 
     let mut out = String::with_capacity(8 * 1024);
     for r in rows {
-        out.push_str(&format!("{verb:<verb_w$}  {label}",
-                              verb = r.verb, label = r.label));
+        out.push_str(&format!(
+            "{verb:<verb_w$}  {class:<class_w$}  {label}",
+            verb  = r.verb,
+            class = r.class,
+            label = r.label,
+        ));
         if !r.id.is_empty() {
             out.push_str("  ");
             out.push_str(&r.id);
@@ -145,6 +147,7 @@ fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
 
         rows.push(Row {
             verb:   verb.into(),
+            class:  cls_short.into(),
             label,
             id:     id_field,
             coords,

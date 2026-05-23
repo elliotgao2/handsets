@@ -15,9 +15,9 @@ $ hs use                              # connect, start the on-device daemon
 daemon up on tcp:9008
 
 $ hs ui                               # flat table of tappable nodes
-fill  "Email"     #email     540,540
-fill  "Password"  #password  540,640  [password]
-tap   "Continue"  #continue  540,860
+fill  EditText  "Email"     #email     540,540
+fill  EditText  "Password"  #password  540,640  [password]
+tap   Button    "Continue"  #continue  540,860
 
 $ hs tap  "Continue"                  # text-lookup tap
 $ hs wait "Welcome"                   # block on success text
@@ -76,7 +76,7 @@ Full protocol: [docs/wire.md](docs/wire.md). Reflection details and sharp edges:
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-Needs `adb` on `$PATH`. macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.16`.
+Needs `adb` on `$PATH`. macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.17`.
 
 Python bindings: `pip install handsets`.
 
