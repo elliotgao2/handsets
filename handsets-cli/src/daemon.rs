@@ -279,12 +279,20 @@ pub(crate) struct DeviceRow {
 }
 
 pub(crate) fn devices() -> io::Result<Vec<DeviceRow>> {
-    let listing = adb_ok(None, &["devices"], "adb devices")?;
-    let forwards = list_forwards().unwrap_or_default();
+    // Prefer the adb-server host protocol — sub-ms per query vs ~30ms per
+    // `adb` subprocess fork. Fall back if adb-server is unreachable.
+    let listing = match adb_server_query("host:devices") {
+        Ok(body) => body,
+        Err(_) => adb_ok(None, &["devices"], "adb devices")?,
+    };
+    let forwards = adb_server_list_forwards().unwrap_or_else(|_|
+        list_forwards().unwrap_or_default());
     let mut rows = Vec::new();
-    for line in listing.lines().skip(1) {
+    for line in listing.lines() {
         let line = line.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() || line.starts_with("List of devices") { continue; }
+        // `adb devices` is space-separated, `host:devices` is tab-separated;
+        // split_whitespace handles both.
         let mut it = line.split_whitespace();
         let serial = match it.next() { Some(s) => s.to_string(), None => continue };
         let state = it.next().unwrap_or("?").to_string();
@@ -298,22 +306,45 @@ pub(crate) fn devices() -> io::Result<Vec<DeviceRow>> {
             model: None,
         };
         if state == "device" {
-            row.jar_present = adb(Some(&serial),
-                &["shell", "test", "-f", DEVICE_JAR, "&&", "echo", "y"])
-                .map(|r| r.stdout.contains('y')).unwrap_or(false);
-            row.running = adb(Some(&serial),
-                &["shell", "pgrep", "-f", "hsd"])
-                .map(|r| !r.stdout.trim().is_empty()).unwrap_or(false);
             row.host_port = forwards.iter()
                 .find(|f| f.serial == serial && f.host_spec.starts_with("tcp:"))
                 .and_then(|f| f.host_spec.strip_prefix("tcp:")?.parse().ok());
-            if row.running {
-                row.sdk = adb(Some(&serial),
-                    &["shell", "getprop", "ro.build.version.sdk"])
-                    .map(|r| r.stdout.trim().to_string()).ok();
-                row.model = adb(Some(&serial),
-                    &["shell", "getprop", "ro.product.model"])
-                    .map(|r| r.stdout.trim().to_string()).ok();
+
+            // Fast path: if a forward exists and the daemon answers `ping`,
+            // we know the daemon is running and the on-device jar must be
+            // present (the daemon can't start without it). sdk/model don't
+            // change between reboots, so serve them from a per-serial cache
+            // and skip the 16ms shell round-trip entirely. Falls through to
+            // the shell probe if any of these aren't met.
+            let pinged = row.host_port.is_some_and(|p| ping_daemon(p).is_ok());
+            let cached = if pinged { read_devinfo_cache(&serial) } else { None };
+            if let (true, Some((sdk, model))) = (pinged, cached) {
+                row.running = true;
+                row.jar_present = true;
+                row.sdk = Some(sdk);
+                row.model = Some(model);
+            } else {
+                // One batched shell call covers all four probes — saves 3
+                // round-trips vs the original four separate `adb shell`s.
+                let cmd = format!(
+                    "test -f {DEVICE_JAR} && echo jar=1 || echo jar=0; \
+                     pgrep -f hsd >/dev/null && echo run=1 || echo run=0; \
+                     echo sdk=$(getprop ro.build.version.sdk); \
+                     echo model=$(getprop ro.product.model)"
+                );
+                let probe = adb_server_shell(&serial, &cmd)
+                    .or_else(|_| adb(Some(&serial), &["shell", &cmd]).map(|r| r.stdout))
+                    .unwrap_or_default();
+                for ln in probe.lines() {
+                    let ln = ln.trim();
+                    if let Some(v) = ln.strip_prefix("jar=")   { row.jar_present = v == "1"; }
+                    else if let Some(v) = ln.strip_prefix("run=")   { row.running = v == "1"; }
+                    else if let Some(v) = ln.strip_prefix("sdk=")   { if !v.is_empty() { row.sdk = Some(v.to_string()); } }
+                    else if let Some(v) = ln.strip_prefix("model=") { if !v.is_empty() { row.model = Some(v.to_string()); } }
+                }
+                if let (Some(sdk), Some(model)) = (row.sdk.as_deref(), row.model.as_deref()) {
+                    let _ = write_devinfo_cache(&serial, sdk, model);
+                }
             }
         }
         rows.push(row);
@@ -398,6 +429,43 @@ fn pick_port_with(
     }
 }
 
+// ---------- per-serial device-info cache (sdk + model) ----------
+//
+// sdk and model never change for a given device, so we cache them in
+// ~/.handsets/devinfo-<serial>.txt and serve `hs` (the no-args device
+// listing) without an `adb shell getprop` round-trip when the daemon is
+// already responding to ping. Worst case the cache is wrong for a
+// reflashed device — easy fix is to rm the file.
+
+fn devinfo_cache_path(serial: &str) -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    // Sanitise the serial — it's user-controlled-ish and we don't want a
+    // serial containing `/` or `..` to escape ~/.handsets/.
+    let safe: String = serial.chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    Some(PathBuf::from(home).join(format!(".handsets/devinfo-{safe}.txt")))
+}
+
+fn read_devinfo_cache(serial: &str) -> Option<(String, String)> {
+    let p = devinfo_cache_path(serial)?;
+    let raw = std::fs::read_to_string(p).ok()?;
+    let mut sdk = None;
+    let mut model = None;
+    for ln in raw.lines() {
+        if let Some(v) = ln.strip_prefix("sdk=")   { sdk = Some(v.to_string()); }
+        else if let Some(v) = ln.strip_prefix("model=") { model = Some(v.to_string()); }
+    }
+    Some((sdk?, model?))
+}
+
+fn write_devinfo_cache(serial: &str, sdk: &str, model: &str) -> io::Result<()> {
+    let p = devinfo_cache_path(serial)
+        .ok_or_else(|| io::Error::other("no $HOME for devinfo cache"))?;
+    if let Some(dir) = p.parent() { std::fs::create_dir_all(dir)?; }
+    std::fs::write(p, format!("sdk={sdk}\nmodel={model}\n"))
+}
+
 // ---------- direct adb-server protocol (tcp:5037) ----------
 //
 // Talking to adb-server directly skips the ~40ms `adb` subprocess fork on
@@ -452,6 +520,38 @@ fn adb_server_resolve_serial(explicit: Option<&str>) -> io::Result<String> {
             found.join(", ")
         ))),
     }
+}
+
+/// Run `cmd` on the device via the adb-server `shell:` channel. Reads the
+/// streamed output until the server closes the connection. ~5-15ms vs ~30ms
+/// for `adb shell` through the subprocess.
+fn adb_server_shell(serial: &str, cmd: &str) -> io::Result<String> {
+    let addr = SocketAddr::from(([127, 0, 0, 1], ADB_SERVER_PORT));
+    let mut s = TcpStream::connect_timeout(&addr, Duration::from_millis(200))?;
+    s.set_read_timeout(Some(Duration::from_secs(5)))?;
+    s.set_write_timeout(Some(Duration::from_secs(2)))?;
+
+    // 1. Switch transport to the target device.
+    let xport = format!("host:transport:{serial}");
+    s.write_all(format!("{:04x}", xport.len()).as_bytes())?;
+    s.write_all(xport.as_bytes())?;
+    let mut status = [0u8; 4];
+    s.read_exact(&mut status)?;
+    if &status != b"OKAY" {
+        return Err(io::Error::other("adb-server transport switch failed"));
+    }
+
+    // 2. Run shell. The server replies OKAY then streams output until EOF.
+    let payload = format!("shell:{cmd}");
+    s.write_all(format!("{:04x}", payload.len()).as_bytes())?;
+    s.write_all(payload.as_bytes())?;
+    s.read_exact(&mut status)?;
+    if &status != b"OKAY" {
+        return Err(io::Error::other("adb-server shell open failed"));
+    }
+    let mut out = Vec::with_capacity(256);
+    s.read_to_end(&mut out)?;
+    String::from_utf8(out).map_err(|_| io::Error::other("shell: non-utf8 output"))
 }
 
 fn adb_server_list_forwards() -> io::Result<Vec<ForwardEntry>> {
