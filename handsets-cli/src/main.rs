@@ -1013,15 +1013,175 @@ fn run_type_focused(opts: &Opts, text: &str, flags: &flags::ActionFlags) -> io::
         json_out::Obj::new().s("text", text))
 }
 
+/// `hs fill` accepts both grammars. Any selector containing `=` is treated
+/// as daemon-grammar (`id=…`, `class=EditText text~=…`) and passed through
+/// unchanged. Bare strings are free-text queries: dump the active window,
+/// find the best-matching input widget, then rebuild a daemon selector
+/// (preferring `id=<full-rid>`, falling back to class + exact text) so the
+/// daemon's narrower parser can still resolve it.
+fn resolve_fill_selector(conn: &mut Conn, sel_in: &str) -> io::Result<String> {
+    if sel_in.contains('=') {
+        return Ok(sel_in.to_string());
+    }
+    let body = conn.call("dump_active")?;
+    if errors::parse_err(&body).is_some() {
+        // Couldn't read the tree — fall through and let the daemon error.
+        return Ok(sel_in.to_string());
+    }
+    let text = std::str::from_utf8(&body)
+        .map_err(|e| io::Error::other(format!("dump not utf-8: {e}")))?;
+    let dump = json::parse(text)
+        .map_err(|e| io::Error::other(format!("dump not json: {e}")))?;
+    let root = json::obj_get(&dump, "root").unwrap_or(&dump);
+
+    match find_fill_target(root, sel_in) {
+        Some(node) => Ok(node_to_daemon_selector(node)),
+        None => Err(io::Error::other(format!(
+            "fill: no input widget matched {sel_in:?} — pass an explicit \
+             selector (`id=...` or `class=EditText text~=...`)"
+        ))),
+    }
+}
+
+/// Build a daemon-grammar selector that uniquely names `node`. Prefers the
+/// full resource id when present (always unique); falls back to class + the
+/// node's own text when the widget is anonymous.
+fn node_to_daemon_selector(node: &json::Value) -> String {
+    let rid = selector::get_str(node, "rid").unwrap_or("");
+    if !rid.is_empty() {
+        return format!("id={rid}");
+    }
+    let cls_full = selector::get_str(node, "cls").unwrap_or("EditText");
+    let simple = cls_full.rsplit('.').next().unwrap_or(cls_full);
+    let txt = selector::get_str(node, "text").unwrap_or("");
+    if !txt.is_empty() {
+        return format!("class={simple} text={txt:?}");
+    }
+    format!("class={simple}")
+}
+
+fn is_input_widget(node: &json::Value) -> bool {
+    let cls = selector::get_str(node, "cls").unwrap_or("");
+    let simple = cls.rsplit('.').next().unwrap_or(cls);
+    matches!(simple,
+        "EditText" | "AutoCompleteTextView" | "MultiAutoCompleteTextView")
+}
+
+/// Score how well an input widget matches the free-text query. Mirrors the
+/// priority ladder in `tap_text::classify` so `hs fill` and `hs tap` rank
+/// candidates the same way.
+fn fill_priority(q: &str, q_low: &str, text: &str, desc: &str, hint: &str) -> Option<u8> {
+    if text == q || desc == q || hint == q { return Some(0); }
+    let t = text.to_lowercase();
+    let d = desc.to_lowercase();
+    let h = hint.to_lowercase();
+    if t == q_low || d == q_low || h == q_low { return Some(1); }
+    if !q_low.is_empty() && (t.contains(q_low) || d.contains(q_low) || h.contains(q_low)) {
+        return Some(2);
+    }
+    None
+}
+
+fn find_fill_target<'a>(root: &'a json::Value, query: &str) -> Option<&'a json::Value> {
+    let q_low = query.to_lowercase();
+
+    // Phase 1: prefer an input widget whose own text/desc/hint matches.
+    // Empty EditTexts surface their hint as `text` in the dump, so this
+    // catches the common "fill the field whose placeholder mentions X" case.
+    let mut best: Option<(u8, &json::Value)> = None;
+    find_input_match(root, query, &q_low, &mut best);
+    if let Some((_, n)) = best { return Some(n); }
+
+    // Phase 2: label-anchored — find any node matching the query, then
+    // take the nearest input widget below or right-of it. Mirrors how a
+    // human reads a form: label on the left or above, field next to it.
+    let mut labels: Vec<&json::Value> = Vec::new();
+    collect_labels(root, &q_low, &mut labels);
+    for label in labels {
+        let Some(lb) = selector::bounds(label) else { continue; };
+        let mut nearest: Option<(i64, &json::Value)> = None;
+        find_nearest_input(root, lb, &mut nearest);
+        if let Some((_, n)) = nearest { return Some(n); }
+    }
+    None
+}
+
+fn find_input_match<'a>(
+    node: &'a json::Value,
+    q: &str,
+    q_low: &str,
+    best: &mut Option<(u8, &'a json::Value)>,
+) {
+    if is_input_widget(node) {
+        let text = selector::get_str(node, "text").unwrap_or("");
+        let desc = selector::get_str(node, "desc").unwrap_or("");
+        let hint = selector::get_str(node, "hint").unwrap_or("");
+        if let Some(p) = fill_priority(q, q_low, text, desc, hint) {
+            let beat = match *best { None => true, Some((bp, _)) => p < bp };
+            if beat { *best = Some((p, node)); }
+        }
+    }
+    if let Some(kids) = selector::children(node) {
+        for c in kids { find_input_match(c, q, q_low, best); }
+    }
+}
+
+fn collect_labels<'a>(node: &'a json::Value, q_low: &str, out: &mut Vec<&'a json::Value>) {
+    let text = selector::get_str(node, "text").unwrap_or("").to_lowercase();
+    let desc = selector::get_str(node, "desc").unwrap_or("").to_lowercase();
+    if !q_low.is_empty()
+        && ((!text.is_empty() && text.contains(q_low))
+            || (!desc.is_empty() && desc.contains(q_low)))
+    {
+        out.push(node);
+    }
+    if let Some(kids) = selector::children(node) {
+        for c in kids { collect_labels(c, q_low, out); }
+    }
+}
+
+fn find_nearest_input<'a>(
+    node: &'a json::Value,
+    lb: (i64, i64, i64, i64),
+    best: &mut Option<(i64, &'a json::Value)>,
+) {
+    if is_input_widget(node) {
+        if let Some(eb) = selector::bounds(node) {
+            // 8px slack so a label whose bottom exactly meets the field
+            // top still counts as "above" rather than "overlapping".
+            let below = eb.1 >= lb.3 - 8;
+            let right = eb.0 >= lb.2 - 8;
+            if below || right {
+                let lcx = (lb.0 + lb.2) / 2;
+                let lcy = (lb.1 + lb.3) / 2;
+                let ecx = (eb.0 + eb.2) / 2;
+                let ecy = (eb.1 + eb.3) / 2;
+                let dx = ecx - lcx;
+                let dy = ecy - lcy;
+                let dist = dx * dx + dy * dy;
+                let beat = match *best { None => true, Some((bd, _)) => dist < bd };
+                if beat { *best = Some((dist, node)); }
+            }
+        }
+    }
+    if let Some(kids) = selector::children(node) {
+        for c in kids { find_nearest_input(c, lb, best); }
+    }
+}
+
 fn run_type_into(
     opts: &Opts, selector: &str, text: &str, flags: &flags::ActionFlags,
 ) -> io::Result<()> {
     let reporter = output::Reporter::new(flags.out(opts.out_fmt));
     let mut conn = Conn::connect(&opts.host, opts.port)?;
+    // Selectors with no `=` are free-text queries: look up the best
+    // matching EditText in the live dump and rebuild a daemon-grammar
+    // selector for it. Mirrors `hs tap "TEXT"`.
+    let resolved = resolve_fill_selector(&mut conn, selector)?;
     let mut attempts = flags.total_attempts();
     loop {
         // Daemon wire command: node_set_text <selector> value="..."
-        let body = conn.call(&format!("node_set_text {selector} value={text:?}"))?;
+        let body = conn.call(&format!("node_set_text {resolved} value={text:?}"))?;
         if let Some(e) = errors::parse_err(&body) {
             attempts = attempts.saturating_sub(1);
             if attempts > 0 {
@@ -1031,7 +1191,10 @@ fn run_type_into(
             return Err(reporter.fail("type", e));
         }
         return reporter.ok("type", &String::from_utf8_lossy(&body).trim_end(),
-            json_out::Obj::new().s("selector", selector).s("text", text));
+            json_out::Obj::new()
+                .s("selector", &resolved)
+                .s("query", selector)
+                .s("text", text));
     }
 }
 
@@ -1358,12 +1521,16 @@ pub(crate) fn dispatch_session_verb(
         Cmd::TypeInto { selector, text, mut flags } => {
             merge_session_defaults(&mut flags, sess);
             let reporter = output::Reporter::new(flags.out(sess.default_out));
-            let body = sess.conn.call(&format!("node_set_text {selector} value={text:?}"))?;
+            let resolved = resolve_fill_selector(&mut sess.conn, &selector)?;
+            let body = sess.conn.call(&format!("node_set_text {resolved} value={text:?}"))?;
             if let Some(e) = errors::parse_err(&body) {
                 return Err(reporter.fail("type", e));
             }
             reporter.ok("type", &String::from_utf8_lossy(&body).trim_end(),
-                json_out::Obj::new().s("selector", &selector).s("text", &text))
+                json_out::Obj::new()
+                    .s("selector", &resolved)
+                    .s("query", &selector)
+                    .s("text", &text))
         }
         Cmd::Input(wire) => {
             let body = sess.conn.call(&wire)?;

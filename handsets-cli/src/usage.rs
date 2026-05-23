@@ -44,6 +44,10 @@ More verbs:
   Input       hs tap X Y | hs swipe DIR | hs go back|home|recents|…
               hs type TEXT                  keystrokes to focused field
               hs fill SELECTOR TEXT         atomic ACTION_SET_TEXT
+                                            SELECTOR is daemon-grammar
+                                            (`id=…`, `class=EditText text~=…`)
+                                            or a free-text query that picks
+                                            the best-matching EditText
               hs submit | hs paste
   Lifecycle   hs open PKG[/.Class] | hs close PKG
               hs install APK… | hs uninstall PKG
