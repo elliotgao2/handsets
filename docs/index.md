@@ -39,9 +39,9 @@ hs drop                # tear it all down
 `hs ui` (since v0.1.14 the interactive table is the default) returns one line per actionable node:
 
 ```
-fill  EditText  "Email"  #email  540,540
-fill  EditText  "Password"  #password  540,640  [password]
-tap   Button    "Continue"  #continue  540,860
+fill  "Email"     #email     540,540
+fill  "Password"  #password  540,640  [password]
+tap   "Continue"  #continue  540,860
 ```
 
 Hand that to a model, get back a label, hand the label to `hs tap`. That's the loop. The full XML hierarchy is still one flag away (`hs ui --xml`), but for an LLM the flat table is roughly 10× cheaper in tokens.
