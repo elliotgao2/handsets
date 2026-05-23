@@ -82,12 +82,21 @@ fn is_interactive(node: &Value) -> bool {
     // Inherent input/widget classes that matter even when empty.
     let cls_full = selector::get_str(node, "cls").unwrap_or("");
     let simple = cls_full.rsplit('.').next().unwrap_or(cls_full);
-    matches!(simple,
+    if matches!(simple,
         "EditText" | "Button" | "ImageButton" | "Switch" | "CheckBox"
         | "RadioButton" | "ToggleButton" | "Spinner" | "SeekBar"
         | "RatingBar" | "WebView"
         | "AutoCompleteTextView" | "MultiAutoCompleteTextView"
-        | "DatePicker" | "TimePicker" | "NumberPicker")
+        | "DatePicker" | "TimePicker" | "NumberPicker") {
+        return true;
+    }
+
+    // Anonymous clickable nodes (ImageView icons, View shims, clickable
+    // containers) with a resource-id are still automatable — surface them
+    // with the id standing in for the missing text/desc label.
+    let rid = selector::get_str(node, "rid").unwrap_or("");
+    let flags = selector::get_str(node, "flags").unwrap_or("");
+    !rid.is_empty() && flags.contains('c')
 }
 
 fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
@@ -105,11 +114,19 @@ fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
         let text  = selector::get_str(node, "text").unwrap_or("");
         let desc  = selector::get_str(node, "desc").unwrap_or("");
 
-        // Label: prefer text, fall back to content-desc, but always
-        // surface as a quoted string. The caller doesn't care which
-        // attribute carried the label — only that it identifies the node.
+        // Label: prefer text, fall back to content-desc; when both are
+        // empty (anonymous clickable widgets) fall through to `#id` so
+        // the row still carries an identifier the user can read and
+        // grep for. The caller doesn't care which attribute carried it
+        // — only that it identifies the node.
         let label_src = if !text.is_empty() { text } else { desc };
-        let label = truncate_quoted(label_src, 60);
+        let label = if !label_src.is_empty() {
+            truncate_quoted(label_src, 60)
+        } else if !id_short.is_empty() {
+            format!("#{id_short}")
+        } else {
+            String::new()
+        };
 
         // Verb the agent would call next. Input widgets get `fill`
         // (atomic ACTION_SET_TEXT against the selector); any other
@@ -139,7 +156,10 @@ fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
             }
         }
 
-        let id_field = if id_short.is_empty() {
+        // The id column is suppressed when the label already carries
+        // `#id` (anonymous clickable widgets) — printing it twice in
+        // the same row reads like a data-entry mistake.
+        let id_field = if id_short.is_empty() || label.starts_with('#') {
             String::new()
         } else {
             format!("#{id_short}")
@@ -346,6 +366,56 @@ mod tests {
         // Resource IDs surface as `#shortname` (Reitz/CSS convention).
         assert!(lines[0].contains("#email"));
         assert!(lines[2].contains("#continue"));
+    }
+
+    /// Clickable ImageView icons (and other anonymous tappable widgets)
+    /// have no text/desc but still need to surface in the agent's table —
+    /// otherwise SSO buttons and the like silently disappear from `hs ui`.
+    /// They render with `#id` standing in for the label, and the id column
+    /// is suppressed so the id doesn't print twice on the same row.
+    #[test]
+    fn anonymous_clickable_image_view_renders_with_id_as_label() {
+        let dump = json::parse(r#"{
+            "root": {
+                "cls": "android.widget.LinearLayout",
+                "rid": "",
+                "text": "",
+                "desc": "",
+                "flags": "",
+                "bounds": [0, 0, 1080, 1920],
+                "children": [
+                    {
+                        "cls": "android.widget.ImageView",
+                        "rid": "com.foo:id/back_btn",
+                        "text": "",
+                        "desc": "",
+                        "flags": "ce",
+                        "bounds": [40, 200, 160, 320],
+                        "children": []
+                    },
+                    {
+                        "cls": "android.widget.ImageView",
+                        "rid": "com.foo:id/decorative",
+                        "text": "",
+                        "desc": "",
+                        "flags": "e",
+                        "bounds": [0, 400, 100, 500],
+                        "children": []
+                    }
+                ]
+            }
+        }"#).unwrap();
+        let out = render_interactive(&dump);
+        let lines: Vec<&str> = out.trim_end().lines().collect();
+
+        // Only the clickable icon surfaces — non-clickable anonymous
+        // ImageViews stay dropped (they were never automatable).
+        assert_eq!(lines.len(), 1, "expected exactly 1 row, got:\n{out}");
+        assert!(lines[0].starts_with("tap"), "got: {}", lines[0]);
+        assert!(lines[0].contains("ImageView"), "got: {}", lines[0]);
+        assert!(lines[0].contains("#back_btn"), "got: {}", lines[0]);
+        // `#back_btn` should appear exactly once — no duplicate id column.
+        assert_eq!(lines[0].matches("#back_btn").count(), 1, "got: {}", lines[0]);
     }
 
     /// Visual inspection helper — run with `cargo test ui_dump::tests::shows_canonical_render -- --nocapture`

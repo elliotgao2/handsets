@@ -67,7 +67,14 @@ pub fn run_session(
             // dump_active envelopes as { ts: ..., root: { ... } }; descend
             // into the inner node so the walker hits the actual a11y root.
             let root = obj_get(tree, "root").unwrap_or(tree);
-            find_all(root, query, &flags)
+            // `#id` short-circuits the text/desc walk so anonymous
+            // clickable widgets (the ImageView icons that `hs ui`
+            // surfaces with a `#name` label) are reachable from `hs tap`.
+            if let Some(id_query) = query.strip_prefix('#') {
+                find_by_id(root, id_query, &flags)
+            } else {
+                find_all(root, query, &flags)
+            }
         }) {
             Ok(h) => h,
             Err(e) => {
@@ -130,6 +137,37 @@ fn io_err_to_info(e: &io::Error) -> Option<ErrInfo> {
     None
 }
 
+
+/// `#id` lookup. Matches the local part of `rid` (so `#back_btn` finds
+/// `com.foo:id/back_btn`) and also accepts the full form when the user
+/// pastes a fully-qualified id. Used by `hs tap #name` to reach widgets
+/// that `hs ui` lists with a `#name` label (anonymous clickable icons).
+fn find_by_id(root: &Value, id_query: &str, flags: &ActionFlags) -> Vec<Hit> {
+    let mut hits: Vec<Hit> = Vec::new();
+    if id_query.is_empty() { return hits; }
+    walk(root, &mut |node| {
+        let rid = obj_get(node, "rid").and_then(as_str).unwrap_or("");
+        if rid.is_empty() { return Some(()); }
+        let short = rid.rsplit('/').next().unwrap_or(rid);
+        if rid != id_query && short != id_query { return Some(()); }
+        let bounds = bounds_of(node)?;
+        let text = obj_get(node, "text").and_then(as_str).unwrap_or("").to_string();
+        let desc = obj_get(node, "desc").and_then(as_str).unwrap_or("").to_string();
+        let cls  = obj_get(node, "cls").and_then(as_str).unwrap_or("").to_string();
+        let flag_str = obj_get(node, "flags").and_then(as_str).unwrap_or("").to_string();
+        if flags.require_clickable && !flag_str.contains('c') { return Some(()); }
+        if flags.require_enabled   && !flag_str.contains('e') { return Some(()); }
+        if flags.require_visible {
+            if !flag_str.contains('v') { return Some(()); }
+            if bounds.2 <= bounds.0 || bounds.3 <= bounds.1 { return Some(()); }
+        }
+        // Priority is uniform across id matches — they're already as
+        // specific as a selector gets, no text/desc tie-break needed.
+        hits.push(Hit { text, desc, cls, flags: flag_str, bounds, priority: Priority::ExactText });
+        Some(())
+    });
+    hits
+}
 
 /// Walk the tree, classify every node whose text/desc matches `query`,
 /// then return the matches sorted by priority (best first). Filters apply

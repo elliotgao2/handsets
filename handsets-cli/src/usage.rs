@@ -14,6 +14,7 @@ The agent loop:
   hs use                       connect a device, start the daemon
   hs ui                        flat table of tappable nodes (the LLM input format)
   hs tap \"Continue\"             find by text, tap centre
+  hs tap #back_btn             find by resource-id, tap centre
   hs type TEXT                 type into the focused field
   hs wait \"Welcome\"             wait for that text to appear
   hs drop                      tear the daemon down
