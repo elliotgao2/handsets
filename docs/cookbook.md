@@ -194,7 +194,7 @@ with Session() as d:
     d.fill("[resource-id=com.example:id/email]", "you@example.com")
     d.submit()
     try:
-        d.wait("Dashboard", timeout="15s")
+        d.wait(text="Dashboard", timeout="15s")
     except Timeout:
         d.go("back")
 ```

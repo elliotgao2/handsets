@@ -240,13 +240,49 @@ class Session:
 
     def wait(
         self,
-        spec: str,
+        text: Optional[str] = None,
         *,
+        app: Optional[str] = None,
+        idle: Optional[Duration] = None,
         timeout: Optional[Duration] = None,
         retries: int = 0,
+        retry_delay: Optional[Duration] = None,
     ) -> dict:
+        """Block until exactly one condition is met.
+
+        * ``text="Welcome"`` (positional or keyword) — wait for that text
+          to appear anywhere in the live UI tree.
+        * ``app="com.foo"`` / ``app="com.foo/.MainActivity"`` — wait for
+          that package or component to foreground.
+        * ``idle="200ms"`` — wait for the UI to settle for that long.
+
+        For plain time-based sleeps, use ``time.sleep`` from the standard
+        library — `wait` is for state, not duration.
+
+        Raises :class:`BadArg` if zero or more than one intent is given.
+        """
+        intents = {k: v for k, v in
+                   {"text": text, "app": app, "idle": idle}.items()
+                   if v is not None}
+        if len(intents) != 1:
+            from .errors import BadArg
+            given = ", ".join(intents) if intents else "none"
+            raise BadArg(
+                f"needs exactly one of text/app/idle (got: {given})",
+                verb="wait",
+            )
+
+        if text is not None:
+            spec = text
+        elif app is not None:
+            spec = app
+        else:
+            spec = f"idle {_fmt_duration(idle)}"
+
         argv = ["wait", spec]
-        argv += self._action_flags(timeout=timeout, retries=retries)
+        argv += self._action_flags(
+            timeout=timeout, retries=retries, retry_delay=retry_delay,
+        )
         return self._call_one_json(argv, verb="wait")
 
     # ─── internals ────────────────────────────────────────────────────

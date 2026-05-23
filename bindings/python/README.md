@@ -28,7 +28,7 @@ with Session() as d:                   # `hs use` on enter, `hs drop` on exit
     d.fill("EditText", "you@x.com")    # atomic ACTION_SET_TEXT against the selector
     d.type("hello")                    # keystrokes to the focused field
     d.submit()
-    d.wait("Welcome", timeout="15s")
+    d.wait(text="Welcome", timeout="15s")
 ```
 
 Errors map to typed exceptions:

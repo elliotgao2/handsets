@@ -103,7 +103,7 @@ Full structured `error.code` in `hs --json` output for the long tail.
 from handsets import Session                      # pip install handsets
 with Session() as d:
     d.tap("Continue")
-    d.wait("Welcome", timeout="15s")
+    d.wait(text="Welcome", timeout="15s")
 ```
 
 Other languages: drive `hs --json` as a subprocess and parse one JSON line per call. ~30 lines in any host language.
