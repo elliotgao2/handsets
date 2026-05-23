@@ -76,7 +76,7 @@ Full protocol: [docs/wire.md](docs/wire.md). Reflection details and sharp edges:
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-Needs `adb` on `$PATH`. macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.23`.
+Needs `adb` on `$PATH`. macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.24`.
 
 Python bindings: `pip install handsets`.
 
