@@ -72,20 +72,28 @@ public final class Main {
             h.state = new State(sysCtx, ua, h.uiEvents);
             Server server = new Server(h, port);
 
-            // Warm the dump path before announcing readiness: the first
-            // `dump_active` call loads Dumper/Traverse/JsonOut classes and
-            // JIT-compiles the recursive walker, easily a >1 s tax on a
-            // cold daemon. A sacrificial dump here moves that cost out of
-            // the user's first `hs ui`. Best-effort — if no window is
-            // active yet (rare at this point), we just skip.
-            try {
-                long t0 = System.nanoTime();
-                h.dumper.dumpActive();
-                long ms = (System.nanoTime() - t0) / 1_000_000;
-                System.err.println("hsd warmup: dump_active in " + ms + "ms");
-            } catch (Throwable t) {
-                System.err.println("warn: dump_active warmup failed: " + t);
-            }
+            // Warm the dump path in the background. First dump_active on a
+            // cold JVM costs ~1 s (class loading + JIT of Dumper / Traverse
+            // / JsonOut). Doing it on a daemon thread means `hs use`
+            // returns fast and the dump path is hot by the time the user
+            // (or an LLM loop) types `hs ui`. Dumper.dumpActive is
+            // synchronized, so if the user's first call races, it serialises
+            // cleanly on the same monitor — never worse than no warmup.
+            final Server.Handlers handlersForWarmup = h;
+            Thread warmup = new Thread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        long t0 = System.nanoTime();
+                        handlersForWarmup.dumper.dumpActive();
+                        long ms = (System.nanoTime() - t0) / 1_000_000;
+                        System.err.println("hsd warmup: dump_active in " + ms + "ms");
+                    } catch (Throwable t) {
+                        System.err.println("warn: dump_active warmup failed: " + t);
+                    }
+                }
+            }, "hsd-warmup");
+            warmup.setDaemon(true);
+            warmup.start();
 
             System.out.println("hsd ready (sdk=" + android.os.Build.VERSION.SDK_INT + ")");
             server.serve();
