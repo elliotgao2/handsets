@@ -25,7 +25,8 @@ with Session() as d:                   # `hs use` on enter, `hs drop` on exit
 
     d.tap("Continue")                  # text lookup
     d.tap(540, 860)                    # raw coords
-    d.type("EditText", "you@x.com")    # selector + text — atomic ACTION_SET_TEXT
+    d.fill("EditText", "you@x.com")    # atomic ACTION_SET_TEXT against the selector
+    d.type("hello")                    # keystrokes to the focused field
     d.submit()
     d.wait("Welcome", timeout="15s")
 ```

@@ -113,8 +113,8 @@ The agent-loop surface is small:
 ```bash
 $ hs use                              # connect, start the on-device daemon
 $ hs ui                               # flat table of tappable nodes
-type  EditText  "Email"     #email     540,540
-type  EditText  "Password"  #password  540,640  [password]
+fill  EditText  "Email"     #email     540,540
+fill  EditText  "Password"  #password  540,640  [password]
 tap   Button    "Continue"  #continue  540,860
 $ hs tap "Continue"                   # text-lookup tap
 tapped "Continue" → ok

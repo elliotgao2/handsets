@@ -109,11 +109,12 @@ fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
         let label_src = if !text.is_empty() { text } else { desc };
         let label = truncate_quoted(label_src, 60);
 
-        // Verb the agent would call next. Input widgets get `type`,
-        // any other clickable node gets `tap`, and informational nodes
-        // (TextView headers, labels) get `-` so the column still aligns.
+        // Verb the agent would call next. Input widgets get `fill`
+        // (atomic ACTION_SET_TEXT against the selector); any other
+        // clickable node gets `tap`; informational nodes (TextView
+        // labels, headers) get `-` so the column still aligns.
         let verb = if is_input_widget(cls_short) {
-            "type"
+            "fill"
         } else if flags.contains('c') {
             "tap"
         } else {
@@ -308,8 +309,8 @@ mod tests {
 
         // Each line starts with the verb the agent would issue next, and
         // the password node carries the `[password]` metadata tag.
-        assert!(lines[0].starts_with("type"), "got: {}", lines[0]);
-        assert!(lines[1].starts_with("type"), "got: {}", lines[1]);
+        assert!(lines[0].starts_with("fill"), "got: {}", lines[0]);
+        assert!(lines[1].starts_with("fill"), "got: {}", lines[1]);
         assert!(lines[2].starts_with("tap"),  "got: {}", lines[2]);
         assert!(lines[1].ends_with("[password]"), "expected trailing [password] tag, got: {}", lines[1]);
 

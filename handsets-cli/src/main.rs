@@ -437,17 +437,34 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         // ─── Input ───────────────────────────────────────────────────
         Some((&"tap", rest)) => parse_tap(rest)?,
         Some((&"type", rest)) => {
+            // `type TEXT` types into the focused field via KeyEvents.
+            // For atomic set-text on a specific node, use `hs fill SELECTOR TEXT`
+            // (Playwright vocabulary; ACTION_SET_TEXT, bypasses the IME).
             let mut tflags = flags::ActionFlags::default();
             let positional = tflags.take(rest)?;
             match positional.len() {
-                0 => return Err("type needs TEXT (1 arg) or SELECTOR TEXT (2 args)".into()),
+                0 => return Err("type needs TEXT".into()),
                 1 => Cmd::TypeFocused { text: positional[0].into(), flags: tflags },
+                _ => return Err(
+                    "type takes one TEXT argument; use `hs fill SELECTOR TEXT` to target a node".into()
+                ),
+            }
+        }
+        Some((&"fill", rest)) => {
+            // ACTION_SET_TEXT against the matching node. Atomic, bypasses the
+            // IME — matches Playwright's `page.fill(selector, value)`.
+            let mut tflags = flags::ActionFlags::default();
+            let positional = tflags.take(rest)?;
+            match positional.len() {
+                0 | 1 => return Err("fill needs SELECTOR TEXT".into()),
                 2 => Cmd::TypeInto {
                     selector: positional[0].into(),
                     text:     positional[1].into(),
                     flags:    tflags,
                 },
-                _ => return Err("type takes TEXT or SELECTOR TEXT — quote multi-word arguments".into()),
+                _ => return Err(
+                    "fill takes SELECTOR TEXT — quote multi-word arguments".into()
+                ),
             }
         }
         Some((&"go", rest)) => {

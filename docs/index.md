@@ -39,8 +39,8 @@ hs drop                # tear it all down
 `hs ui` (since v0.1.14 the interactive table is the default) returns one line per actionable node:
 
 ```
-type  EditText  "Email"  #email  540,540
-type  EditText  "Password"  #password  540,640  [password]
+fill  EditText  "Email"  #email  540,540
+fill  EditText  "Password"  #password  540,640  [password]
 tap   Button    "Continue"  #continue  540,860
 ```
 

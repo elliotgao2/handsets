@@ -187,21 +187,31 @@ class Session:
         )
         return self._call_one_json(argv, verb="tap")
 
-    def type(
+    def type(self, text: str, *, timeout: Optional[Duration] = None) -> dict:
+        """Type ``text`` into whatever has focus, as a stream of KeyEvents.
+
+        For setting the value of a specific node (atomic, bypasses the IME),
+        use :meth:`fill` — same vocabulary as Playwright's ``page.fill``.
+        """
+        argv = ["type", text]
+        argv += self._action_flags(timeout=timeout)
+        return self._call_one_json(argv, verb="type")
+
+    def fill(
         self,
-        selector_or_text: str,
-        text: Optional[str] = None,
+        selector: str,
+        text: str,
         *,
         timeout: Optional[Duration] = None,
     ) -> dict:
-        """``type(TEXT)`` types into the focused field; ``type(SELECTOR, TEXT)``
-        targets a specific node via ``ACTION_SET_TEXT`` (atomic, bypasses IME)."""
-        if text is None:
-            argv = ["type", selector_or_text]
-        else:
-            argv = ["type", selector_or_text, text]
+        """Set ``text`` on the node matching ``selector`` via ``ACTION_SET_TEXT``.
+
+        Atomic — bypasses the on-screen keyboard, handles autocomplete and
+        password fields cleanly. Mirrors Playwright's ``page.fill``.
+        """
+        argv = ["fill", selector, text]
         argv += self._action_flags(timeout=timeout)
-        return self._call_one_json(argv, verb="type")
+        return self._call_one_json(argv, verb="fill")
 
     def submit(self, selector: Optional[str] = None) -> dict:
         """Press the focused field's IME action key (Go / Search / Send / Done)."""

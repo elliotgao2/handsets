@@ -68,15 +68,15 @@ pub fn parse(rest: &[&str]) -> Result<ActOpts, String> {
             }
             "--type" => {
                 i += 1;
-                let a = scoped.get(i).ok_or("--type needs TEXT or SELECTOR TEXT")?;
-                if let Some(b) = scoped.get(i + 1) {
-                    if !b.starts_with("--") {
-                        action = Some(ActAction::TypeInto(a.to_string(), b.to_string()));
-                        i += 2;
-                        continue;
-                    }
-                }
-                action = Some(ActAction::TypeText(a.to_string()));
+                let t = scoped.get(i).ok_or("--type needs TEXT")?;
+                action = Some(ActAction::TypeText(t.to_string()));
+            }
+            "--fill" => {
+                i += 1;
+                let sel  = scoped.get(i).ok_or("--fill needs SELECTOR TEXT")?;
+                let text = scoped.get(i + 1).ok_or("--fill needs SELECTOR TEXT")?;
+                action = Some(ActAction::TypeInto(sel.to_string(), text.to_string()));
+                i += 1;
             }
             "--key" => {
                 i += 1;

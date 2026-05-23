@@ -42,6 +42,8 @@ More verbs:
               hs ui [-i|--tree|--json|--xml] [--all]
               hs info | hs show [top|PKG]
   Input       hs tap X Y | hs swipe DIR | hs go back|home|recents|…
+              hs type TEXT                  keystrokes to focused field
+              hs fill SELECTOR TEXT         atomic ACTION_SET_TEXT
               hs submit | hs paste
   Lifecycle   hs open PKG[/.Class] | hs close PKG
               hs install APK… | hs uninstall PKG

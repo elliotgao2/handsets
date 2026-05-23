@@ -21,8 +21,8 @@ hs use
 hs wait idle 200ms
 
 hs tap   "Sign in"              --visible --unique --timeout 5s
-hs type  [resource-id=com.example:id/email]    "you@example.com"
-hs type  [resource-id=com.example:id/password] "hunter2"
+hs fill  [resource-id=com.example:id/email]    "you@example.com"
+hs fill  [resource-id=com.example:id/password] "hunter2"
 hs submit
 hs wait  "Dashboard"            --timeout 15s
 ```
@@ -33,8 +33,8 @@ with `--nth 1` or tighten the selector. When IDs aren't stable, lean on
 the relational pseudo-classes:
 
 ```bash
-hs type 'EditText:below(TextView[text=Email])'    "you@example.com"
-hs type 'EditText:below(TextView[text=Password])' "hunter2"
+hs fill 'EditText:below(TextView[text=Email])'    "you@example.com"
+hs fill 'EditText:below(TextView[text=Password])' "hunter2"
 ```
 
 ## Waiting for the next screen
@@ -173,7 +173,7 @@ more `tap ... && sleep 0.5 && wait ...` chains:
 
 ```bash
 hs act --tap   "Send"        --until "Sent"            --timeout 8s
-hs act --type  [id=q] "claude" --until 'RecyclerView'  --timeout 5s
+hs act --fill  [id=q] "claude" --until 'RecyclerView'  --timeout 5s
 hs act --swipe up 300        --until-idle              --timeout 2s
 ```
 
@@ -191,7 +191,7 @@ from handsets import Session, NotFound, Timeout
 
 with Session() as d:
     d.tap("Continue", visible=True, unique=True, timeout="5s")
-    d.type("[resource-id=com.example:id/email]", "you@example.com")
+    d.fill("[resource-id=com.example:id/email]", "you@example.com")
     d.submit()
     try:
         d.wait("Dashboard", timeout="15s")
@@ -229,8 +229,8 @@ set dump-ttl=200ms
 
 wait idle
 tap   "Continue"   --visible --unique
-type  [id=email]   "you@example.com"
-type  [id=pw]      "hunter2"
+fill  [id=email]   "you@example.com"
+fill  [id=pw]      "hunter2"
 submit
 wait  "Dashboard"  --timeout 15s
 ```
