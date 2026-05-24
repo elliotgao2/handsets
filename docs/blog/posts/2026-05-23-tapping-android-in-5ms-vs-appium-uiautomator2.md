@@ -194,6 +194,8 @@ I'd love to hear what your bench shows.
 
 ## Related guides
 
+- [Handsets vs Appium](2026-05-24-handsets-vs-appium.md)
+- [uiautomator2 Alternative for Android Automation](2026-05-24-uiautomator2-alternative-for-android-automation.md)
 - [Stop Wasting Tokens on Android Automation](2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [How to Control an Android Phone Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
 - [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)

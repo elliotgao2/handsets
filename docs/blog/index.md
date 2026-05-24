@@ -13,6 +13,16 @@ These posts answer one real search query at a time. Start here if you want to dr
 - [How to Test Android Apps Without Rooted Devices](posts/2026-05-24-how-to-test-android-apps-without-rooted-devices.md)
 - [How to Run Mobile QA Tests Without Rooted Phones](posts/2026-05-24-how-to-run-mobile-qa-tests-without-rooted-phones.md)
 - [How to Manage Multiple Android Phones Without Root](posts/2026-05-24-how-to-manage-multiple-android-phones-without-root.md)
+- [Python Android Automation Without Root](posts/2026-05-24-python-android-automation-without-root.md)
+
+## Comparisons And Alternatives
+
+These posts target the searches people make when Appium, uiautomator2, or raw ADB feels too heavy or too slow.
+
+- [Handsets vs Appium](posts/2026-05-24-handsets-vs-appium.md)
+- [Best Appium Alternative for Android Automation](posts/2026-05-24-best-appium-alternative-for-android-automation.md)
+- [How to Automate Android Without Appium](posts/2026-05-24-how-to-automate-android-without-appium.md)
+- [uiautomator2 Alternative for Android Automation](posts/2026-05-24-uiautomator2-alternative-for-android-automation.md)
 
 ## Performance And Agent Internals
 
