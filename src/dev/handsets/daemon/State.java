@@ -349,6 +349,38 @@ final class State {
         } catch (Throwable t) {
             System.err.println("warn: State display listener failed: " + t);
         }
+
+        // 3. Configuration changes → uiMode (dark/light theme), locale,
+        //    orientation. ACTION_CONFIGURATION_CHANGED is what UiModeManager
+        //    fires when night mode toggles; ComponentCallbacks dispatch isn't
+        //    reliable from a shell-uid Context (our Resources don't get
+        //    updated by ActivityThread the way an app process's would), so
+        //    we listen for the system broadcast directly.
+        try {
+            android.content.IntentFilter cfgFilter = new android.content.IntentFilter(
+                    android.content.Intent.ACTION_CONFIGURATION_CHANGED);
+            HandlerThread cfgT = new HandlerThread("hs-state-cfg");
+            cfgT.setDaemon(true);
+            cfgT.start();
+            Handler cfgH = new Handler(cfgT.getLooper());
+            android.content.BroadcastReceiver cfgR = new android.content.BroadcastReceiver() {
+                @Override public void onReceive(Context c, android.content.Intent i) {
+                    markDirty();
+                }
+            };
+            try {
+                java.lang.reflect.Method m = Context.class.getMethod(
+                        "registerReceiver",
+                        android.content.BroadcastReceiver.class,
+                        android.content.IntentFilter.class,
+                        String.class, Handler.class, int.class);
+                m.invoke(ctx, cfgR, cfgFilter, null, cfgH, /* RECEIVER_EXPORTED */ 2);
+            } catch (Throwable noFlagOverload) {
+                ctx.registerReceiver(cfgR, cfgFilter, null, cfgH);
+            }
+        } catch (Throwable t) {
+            System.err.println("warn: State config-change listener failed: " + t);
+        }
     }
 
     /** Static fields — props, total RAM/storage, CPU model. Computed once. */
@@ -577,6 +609,26 @@ final class State {
     }
 
     private String readTheme() {
+        // The shell-UID Context we run under has no app Resources attached,
+        // so its Configuration stays frozen at UI_MODE_NIGHT_UNDEFINED no
+        // matter what the user toggles, and UiModeManager.getNightMode() in
+        // this process can also lag behind the system service. The
+        // authoritative source is the Settings.Secure entry the
+        // UiModeManagerService itself writes to: 1=NO, 2=YES, 0/3=AUTO/CUSTOM.
+        try {
+            int v = android.provider.Settings.Secure.getInt(
+                    ctx.getContentResolver(), "ui_night_mode", -1);
+            if (v == 2) return "dark";
+            if (v == 1) return "light";
+        } catch (Throwable ignored) {}
+        try {
+            android.app.UiModeManager uim = ctx.getSystemService(android.app.UiModeManager.class);
+            if (uim != null) {
+                int mode = uim.getNightMode();
+                if (mode == android.app.UiModeManager.MODE_NIGHT_YES) return "dark";
+                if (mode == android.app.UiModeManager.MODE_NIGHT_NO)  return "light";
+            }
+        } catch (Throwable ignored) {}
         try {
             int night = ctx.getResources().getConfiguration().uiMode
                     & Configuration.UI_MODE_NIGHT_MASK;
