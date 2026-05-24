@@ -1,5 +1,5 @@
 site_name: Handsets
-site_url: https://elliotgao2.github.io/handsets/
+site_url: https://handsets.dev/
 site_description: A millisecond-latency CLI for driving Android devices. Built for LLM agents and shell scripts.
 repo_url: https://github.com/elliotgao2/handsets
 repo_name: elliotgao2/handsets

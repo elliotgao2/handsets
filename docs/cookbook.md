@@ -3,7 +3,7 @@
 *Recipes for driving Android with `hs`. Each one is copy-pasteable into a
 real terminal.*
 
-These build on the agent loop in the [README](../README.md) and the verb
+These build on the agent loop in the [README](index.md) and the verb
 table in `hs --help`. If you've never run `hs use`, start there. The
 shared action flags (`--timeout`, `--retries`, `--visible`, `--unique`,
 `--nth`, `--json`, …) work on every action verb; this page shows them in

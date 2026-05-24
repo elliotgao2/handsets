@@ -125,7 +125,7 @@ issue, the label is in the quotes, the coordinates trail. An LLM picks a
 label and you hand it back to `hs tap`. The UI dump for the screen above
 is **3.3 KB / 729 tokens** — versus Appium's `page_source` on the same
 screen at **22.3 KB / 5 762 tokens**. About 8× fewer tokens, same agent
-decisions. (Full bench: [An Android UI dump for LLMs](android-ui-dump-for-llms.md).)
+decisions. (Full bench: [An Android UI dump for LLMs](2026-05-22-android-ui-dump-for-llms.md).)
 
 ## Where the time went
 
