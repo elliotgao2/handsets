@@ -194,6 +194,7 @@ I'd love to hear what your bench shows.
 
 ## Related guides
 
+- [Stop Wasting Tokens on Android Automation](2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [How to Control an Android Phone Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
 - [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
 - [An Android UI Dump for LLMs](2026-05-22-android-ui-dump-for-llms.md)

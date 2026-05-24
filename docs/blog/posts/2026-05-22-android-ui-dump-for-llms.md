@@ -284,6 +284,7 @@ a hole.
 
 ## Related guides
 
+- [Stop Wasting Tokens on Android Automation](2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
 - [How to Control an Android Phone Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
 - [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)

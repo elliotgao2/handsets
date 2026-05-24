@@ -18,6 +18,7 @@ These posts answer one real search query at a time. Start here if you want to dr
 
 These posts explain why Handsets is fast enough for tight automation loops and LLM agents.
 
+- [Stop Wasting Tokens on Android Automation](posts/2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [Tapping Android in 5 ms](posts/2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)
 - [An Android UI Dump for LLMs](posts/2026-05-22-android-ui-dump-for-llms.md)
 - [Why adb screencap is slow](posts/2026-05-22-why-adb-screencap-is-slow.md)
