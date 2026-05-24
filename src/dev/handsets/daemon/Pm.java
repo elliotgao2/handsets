@@ -22,7 +22,10 @@ final class Pm {
 
     Pm(Context ctx) { this.ctx = ctx; }
 
-    /** Args: optional flags "3" (third-party only) or "s" (system only). */
+    /** Args: optional flags "3" (third-party only) or "s" (system only).
+     *  Output columns: package \t label \t sourceDir. Label is the
+     *  user-visible app name from the manifest; blank for packages whose
+     *  manifest label is just the package name (overlays, RROs, providers). */
     byte[] list(boolean thirdPartyOnly, boolean systemOnly) {
         PackageManager pm = ctx.getPackageManager();
         List<PackageInfo> pkgs = pm.getInstalledPackages(0);
@@ -33,7 +36,19 @@ final class Pm {
             boolean system = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
             if (thirdPartyOnly && system) continue;
             if (systemOnly && !system) continue;
+            String label = "";
+            try {
+                CharSequence l = pm.getApplicationLabel(ai);
+                if (l != null) {
+                    String s = l.toString();
+                    if (!s.equals(p.packageName)) {
+                        label = s.replace('\t', ' ').replace('\n', ' ');
+                    }
+                }
+            } catch (Throwable ignored) {}
             sb.append(p.packageName)
+              .append('\t')
+              .append(label)
               .append('\t')
               .append(ai.sourceDir == null ? "" : ai.sourceDir)
               .append('\n');
