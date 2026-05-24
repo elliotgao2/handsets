@@ -50,7 +50,7 @@ More verbs:
                                             or a free-text query that picks
                                             the best-matching EditText
               hs submit | hs paste
-  Lifecycle   hs open PKG[/.Class] | hs close PKG
+  Lifecycle   hs open PKG[/.Class] | hs open \"App Name\" | hs close PKG
               hs install APK… | hs uninstall PKG
   Files       hs cp device:src dst | src device:dst
   Apps        hs apps [--3rd] | hs links PKG

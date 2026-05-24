@@ -38,6 +38,25 @@ final class Am {
                 // way `monkey -p pkg 1` and Launcher.startActivity do.
                 Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(component);
                 if (launch != null) cn = launch.getComponent();
+                if (cn == null) {
+                    // No package matched. Try the user-visible label as the
+                    // last fallback so `hs open "Chrome"` works alongside
+                    // `hs open com.android.chrome`.
+                    List<android.content.pm.ResolveInfo> hits = findByLabel(component);
+                    if (hits.size() == 1) {
+                        android.content.pm.ActivityInfo a = hits.get(0).activityInfo;
+                        cn = new ComponentName(a.packageName, a.name);
+                    } else if (hits.size() > 1) {
+                        StringBuilder pkgs = new StringBuilder();
+                        for (int i = 0; i < hits.size(); i++) {
+                            if (i > 0) pkgs.append(',');
+                            pkgs.append(hits.get(i).activityInfo.packageName);
+                        }
+                        return err("AMBIGUOUS_LABEL:" + component + ":" + pkgs
+                                + " — use the package id (e.g. "
+                                + hits.get(0).activityInfo.packageName + ")");
+                    }
+                }
             }
             if (cn == null) return err("bad-component:" + component);
             Intent intent = new Intent();
@@ -189,6 +208,28 @@ final class Am {
         } catch (Throwable t) {
             return err("broadcast-failed:" + t.getClass().getSimpleName() + ":" + t.getMessage());
         }
+    }
+
+    /** Launcher activities (ACTION_MAIN + CATEGORY_LAUNCHER) whose app label
+     *  matches {@code label} case-insensitively. Restricted to launcher
+     *  activities so a label collision with a non-app package — system
+     *  providers, overlays — doesn't poison the resolution. */
+    private List<android.content.pm.ResolveInfo> findByLabel(String label) {
+        List<android.content.pm.ResolveInfo> out = new ArrayList<>();
+        if (label == null || label.isEmpty()) return out;
+        android.content.pm.PackageManager pm = ctx.getPackageManager();
+        Intent probe = new Intent(Intent.ACTION_MAIN);
+        probe.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<android.content.pm.ResolveInfo> launchers = pm.queryIntentActivities(probe, 0);
+        for (android.content.pm.ResolveInfo ri : launchers) {
+            try {
+                CharSequence l = ri.loadLabel(pm);
+                if (l != null && label.equalsIgnoreCase(l.toString())) {
+                    out.add(ri);
+                }
+            } catch (Throwable ignored) {}
+        }
+        return out;
     }
 
     /** Accept "pkg/.Class" (relative) or "pkg/full.Class". */
