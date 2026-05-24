@@ -168,7 +168,7 @@ fn io_err_to_info(e: &io::Error) -> Option<ErrInfo> {
 fn find_by_id(root: &Value, id_query: &str, flags: &ActionFlags) -> Vec<Hit> {
     let mut hits: Vec<Hit> = Vec::new();
     if id_query.is_empty() { return hits; }
-    walk(root, &mut |node| {
+    walk(root, &mut |node, _ancestors| {
         let rid = obj_get(node, "rid").and_then(as_str).unwrap_or("");
         if rid.is_empty() { return Some(()); }
         let short = rid.rsplit('/').next().unwrap_or(rid);
@@ -203,14 +203,20 @@ fn find_by_id(root: &Value, id_query: &str, flags: &ActionFlags) -> Vec<Hit> {
 fn find_all(root: &Value, query: &str, flags: &ActionFlags) -> Vec<Hit> {
     let q_low = query.to_ascii_lowercase();
     let mut hits: Vec<Hit> = Vec::new();
-    walk(root, &mut |node| {
-        let bounds = bounds_of(node)?;
+    walk(root, &mut |node, ancestors| {
+        let raw_bounds = bounds_of(node)?;
         let text = obj_get(node, "text").and_then(as_str).unwrap_or("");
         let desc = obj_get(node, "desc").and_then(as_str).unwrap_or("");
         let pri = classify(text, desc, query, &q_low)?;
-        let cls = obj_get(node, "cls").and_then(as_str).unwrap_or("").to_string();
-        let rid = obj_get(node, "rid").and_then(as_str).unwrap_or("").to_string();
-        let flag_str = obj_get(node, "flags").and_then(as_str).unwrap_or("").to_string();
+        let raw_cls = obj_get(node, "cls").and_then(as_str).unwrap_or("");
+        let raw_rid = obj_get(node, "rid").and_then(as_str).unwrap_or("");
+        let raw_flags = obj_get(node, "flags").and_then(as_str).unwrap_or("");
+        // Promote to the nearest clickable ancestor when the matched node
+        // is a non-clickable label — see promote_to_clickable for why.
+        // Filters check the post-promotion (actual tap-target) flags so
+        // --clickable still picks up label-inside-button rows.
+        let (bounds, rid, cls, flag_str) =
+            promote_to_clickable(raw_bounds, raw_rid, raw_cls, raw_flags, ancestors);
         if flags.require_clickable && !flag_str.contains('c') { return Some(()); }
         if flags.require_enabled   && !flag_str.contains('e') { return Some(()); }
         if flags.require_visible {
@@ -255,15 +261,62 @@ fn classify(text: &str, desc: &str, q: &str, q_low: &str) -> Option<Priority> {
     None
 }
 
-fn walk<F: FnMut(&Value) -> Option<()>>(node: &Value, f: &mut F) {
+fn walk<'a, F>(node: &'a Value, f: &mut F)
+where
+    F: FnMut(&'a Value, &[&'a Value]) -> Option<()>,
+{
+    let mut ancestors: Vec<&'a Value> = Vec::new();
+    walk_inner(node, &mut ancestors, f);
+}
+
+fn walk_inner<'a, F>(node: &'a Value, ancestors: &mut Vec<&'a Value>, f: &mut F)
+where
+    F: FnMut(&'a Value, &[&'a Value]) -> Option<()>,
+{
     if matches!(node, Value::Obj(_)) {
-        let _ = f(node);
+        let _ = f(node, ancestors);
         if let Some(Value::Arr(children)) = obj_get(node, "children") {
+            ancestors.push(node);
             for c in children {
-                walk(c, f);
+                walk_inner(c, ancestors, f);
             }
+            ancestors.pop();
         }
     }
+}
+
+/// Lift a non-clickable text match onto the nearest clickable ancestor.
+///
+/// Apps routinely structure tappable rows as `Button > TextView "Sign in"`,
+/// where the matched node is the label (flags=ev) but the actual onClick is
+/// registered on the parent container (flags=cev). Tapping the label's
+/// centre happens to work — Android dispatches the touch up the view tree —
+/// but the daemon can't use the faster `node_click id=…` shortcut and the
+/// reported flags lie about what got tapped. Walking up to the first
+/// clickable ancestor gives both: accurate logs and the click-by-id path.
+fn promote_to_clickable<'a>(
+    bounds: (i32, i32, i32, i32),
+    rid: &str,
+    cls: &str,
+    flag_str: &str,
+    ancestors: &[&'a Value],
+) -> ((i32, i32, i32, i32), String, String, String) {
+    if flag_str.contains('c') {
+        return (bounds, rid.to_string(), cls.to_string(), flag_str.to_string());
+    }
+    for anc in ancestors.iter().rev() {
+        let aflags = obj_get(anc, "flags").and_then(as_str).unwrap_or("");
+        if !aflags.contains('c') { continue; }
+        let abounds = match bounds_of(anc) {
+            Some(b) => b,
+            None => continue,
+        };
+        if abounds.2 <= abounds.0 || abounds.3 <= abounds.1 { continue; }
+        let arid = obj_get(anc, "rid").and_then(as_str).unwrap_or("").to_string();
+        let acls = obj_get(anc, "cls").and_then(as_str).unwrap_or("").to_string();
+        return (abounds, arid, acls, aflags.to_string());
+    }
+    (bounds, rid.to_string(), cls.to_string(), flag_str.to_string())
 }
 
 fn bounds_of(node: &Value) -> Option<(i32, i32, i32, i32)> {
