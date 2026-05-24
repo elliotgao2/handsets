@@ -143,3 +143,9 @@ hs wait "Success" --timeout 15s
 ```
 
 That is mobile QA without rooted phones: ordinary devices, ordinary UI, explicit waits, and useful artifacts when reality disagrees.
+
+## Related guides
+
+- [How to Test Android Apps Without Rooted Devices](2026-05-24-how-to-test-android-apps-without-rooted-devices.md)
+- [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
+- [How to Manage Multiple Android Phones Without Root](2026-05-24-how-to-manage-multiple-android-phones-without-root.md)

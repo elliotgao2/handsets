@@ -122,3 +122,9 @@ hs wait "Welcome"
 ```
 
 That small check pays for itself quickly.
+
+## Related guides
+
+- [How to Test Android Apps Without Rooted Devices](2026-05-24-how-to-test-android-apps-without-rooted-devices.md)
+- [How to Run Mobile QA Tests Without Rooted Phones](2026-05-24-how-to-run-mobile-qa-tests-without-rooted-phones.md)
+- [How to Manage Multiple Android Phones Without Root](2026-05-24-how-to-manage-multiple-android-phones-without-root.md)

@@ -138,3 +138,9 @@ hs see --native screen.png
 ```
 
 Root is not part of the story.
+
+## Related guides
+
+- [Why adb screencap is slow](2026-05-22-why-adb-screencap-is-slow.md)
+- [How to Control an Android Phone Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
+- [An Android UI Dump for LLMs](2026-05-22-android-ui-dump-for-llms.md)

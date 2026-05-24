@@ -1,6 +1,7 @@
 ---
 date: 2026-05-22
 slug: android-ui-dump-for-llms
+description: A compact Android UI dump format for LLM agents that cuts XML token usage by roughly 8-13x while preserving actionable UI labels.
 categories:
   - LLM agents
   - Design
@@ -280,6 +281,12 @@ If your screen produces a materially different ratio, I'd be curious
 to see it. An app with a deep custom layout tree should produce a
 *bigger* ratio, not smaller; if it's smaller, the filter probably has
 a hole.
+
+## Related guides
+
+- [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
+- [How to Control an Android Phone Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
+- [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)
 
 ---
 

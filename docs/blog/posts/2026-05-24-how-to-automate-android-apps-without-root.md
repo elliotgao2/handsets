@@ -138,3 +138,9 @@ hs wait "Thing that should appear next"
 ```
 
 That is enough to automate a surprising amount of Android work.
+
+## Related guides
+
+- [How to Control an Android Phone Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
+- [How to Run Mobile QA Tests Without Rooted Phones](2026-05-24-how-to-run-mobile-qa-tests-without-rooted-phones.md)
+- [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)

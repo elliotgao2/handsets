@@ -121,3 +121,9 @@ hs wait "Dashboard"
 ```
 
 That covers a lot of smoke tests, release checks, and agent-driven workflows without turning your devices into something your users do not have.
+
+## Related guides
+
+- [How to Install APKs on Android Without Root](2026-05-24-how-to-install-apks-on-android-without-root.md)
+- [How to Run Mobile QA Tests Without Rooted Phones](2026-05-24-how-to-run-mobile-qa-tests-without-rooted-phones.md)
+- [How to Take Screenshots on Android Without Root](2026-05-24-how-to-take-screenshots-on-android-without-root.md)

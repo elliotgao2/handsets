@@ -1,6 +1,7 @@
 ---
 date: 2026-05-22
 slug: why-adb-screencap-is-slow
+description: Why adb screencap can take seconds per Android screenshot, and how Handsets captures agent-sized screenshots much faster.
 categories:
   - Performance
 ---
@@ -244,6 +245,12 @@ PY
 If you reproduce something materially different, open an issue with
 your device model and Android version — the numbers above are honest
 but I'm curious where they hold and where they don't.
+
+## Related guides
+
+- [How to Take Screenshots on Android Without Root](2026-05-24-how-to-take-screenshots-on-android-without-root.md)
+- [An Android UI Dump for LLMs](2026-05-22-android-ui-dump-for-llms.md)
+- [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)
 
 ---
 

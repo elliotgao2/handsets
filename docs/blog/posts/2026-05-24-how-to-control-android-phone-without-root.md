@@ -124,3 +124,9 @@ hs wait "Dashboard"
 ```
 
 No root. No helper app. No coordinate spreadsheet.
+
+## Related guides
+
+- [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
+- [How to Take Screenshots on Android Without Root](2026-05-24-how-to-take-screenshots-on-android-without-root.md)
+- [How to Test Android Apps Without Rooted Devices](2026-05-24-how-to-test-android-apps-without-rooted-devices.md)

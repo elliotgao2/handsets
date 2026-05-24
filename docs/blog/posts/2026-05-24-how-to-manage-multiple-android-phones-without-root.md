@@ -121,3 +121,9 @@ hs fan PIXEL6,PIXEL7,emulator-5554 -- wait "Done"
 ```
 
 That is the quiet win: the phones stay ordinary, and the workflow still scales past one device.
+
+## Related guides
+
+- [How to Install APKs on Android Without Root](2026-05-24-how-to-install-apks-on-android-without-root.md)
+- [How to Run Mobile QA Tests Without Rooted Phones](2026-05-24-how-to-run-mobile-qa-tests-without-rooted-phones.md)
+- [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
