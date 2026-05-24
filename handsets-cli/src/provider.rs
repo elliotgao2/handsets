@@ -93,6 +93,7 @@ fn write_value(w: &mut impl Write, v: &json::Value) -> io::Result<()> {
         json::Value::Null => w.write_all(b"null"),
         json::Value::Bool(b) => write!(w, "{b}"),
         json::Value::Num(n) => write!(w, "{n}"),
+        json::Value::Float(f) => write!(w, "{f}"),
         json::Value::Str(s) => {
             w.write_all(b"\"")?;
             write_escaped(w, s)?;
@@ -185,6 +186,7 @@ fn format_cell(col: &str, v: &json::Value, type_maps: &[TypeMap]) -> String {
             }
             n.to_string()
         }
+        json::Value::Float(f) => f.to_string(),
         _ => "?".into(),
     }
 }

@@ -1,15 +1,17 @@
 // Minimal JSON parser, just enough for the daemon's dump output.
 //
-// Numbers collapse to i64 (the only numeric fields we read are integer
-// rectangle coordinates and timestamps). Strings handle the escapes the
-// daemon emits (\n, \r, \t, \b, \f, \" , \\, \/, and \uXXXX). UTF-8 is
-// passed through raw — the daemon emits well-formed UTF-8.
+// Integral numbers collapse to i64 (rectangle coordinates, timestamps);
+// fractional numbers come back as Float (lat/lon, accuracy in meters).
+// Strings handle the escapes the daemon emits (\n, \r, \t, \b, \f, \" ,
+// \\, \/, and \uXXXX). UTF-8 is passed through raw — the daemon emits
+// well-formed UTF-8.
 
 #[derive(Debug)]
 pub enum Value {
     Null,
     Bool(bool),
     Num(i64),
+    Float(f64),
     Str(String),
     Arr(Vec<Value>),
     Obj(Vec<(String, Value)>),
@@ -298,7 +300,7 @@ impl<'a> Parser<'a> {
         if let Ok(n) = s.parse::<i64>() {
             Ok(Value::Num(n))
         } else if let Ok(f) = s.parse::<f64>() {
-            Ok(Value::Num(f as i64))
+            Ok(Value::Float(f))
         } else {
             Err(format!("bad number '{s}' at byte {start}"))
         }

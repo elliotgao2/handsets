@@ -122,6 +122,7 @@ enum Cmd {
     Calls { kind: String, limit: u32, json: bool },
     Contacts { limit: u32, json: bool },
     Calendar { from_ms: Option<i64>, to_ms: Option<i64>, days: Option<i64>, limit: u32, json: bool },
+    Location { json: bool },
     Notif { pkg: Option<String>, history: bool, limit: u32, json: bool },
     Clip { text: Option<String>, watch: bool, interval_ms: u64 },
 }
@@ -684,6 +685,16 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
             }
             Cmd::Contacts { limit, json }
         }
+        Some((&"location" | &"gps", rest)) => {
+            let mut json = false;
+            for tok in rest {
+                match *tok {
+                    "--json" => json = true,
+                    other => return Err(format!("unknown location arg: {other}")),
+                }
+            }
+            Cmd::Location { json }
+        }
         // ─── Clipboard ────────────────────────────────────────────────
         Some((&"clip", rest)) => {
             let mut watch = false;
@@ -894,14 +905,14 @@ fn run(opts: &Opts) -> io::Result<()> {
         Cmd::Sms { kind, limit, json } => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("sms type={kind} limit={limit}");
-            provider::run(&mut conn, &wire, *json,
+            provider::run(&mut conn, &wire, *json || opts.out_fmt == flags::OutFmt::Json,
                 &[provider::TypeMap { column: "type", map: SMS_TYPES }],
                 &[])
         }
         Cmd::Calls { kind, limit, json } => {
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("calls type={kind} limit={limit}");
-            provider::run(&mut conn, &wire, *json,
+            provider::run(&mut conn, &wire, *json || opts.out_fmt == flags::OutFmt::Json,
                 &[provider::TypeMap { column: "type", map: CALL_TYPES }],
                 &[])
         }
@@ -911,7 +922,7 @@ fn run(opts: &Opts) -> io::Result<()> {
             // friendly labels for display + JSON.
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("contacts limit={limit}");
-            provider::run(&mut conn, &wire, *json,
+            provider::run(&mut conn, &wire, *json || opts.out_fmt == flags::OutFmt::Json,
                 &[provider::TypeMap { column: "type", map: PHONE_TYPES }],
                 &[("data1", "number"), ("data2", "type"), ("data3", "label")])
         }
@@ -957,7 +968,11 @@ fn run(opts: &Opts) -> io::Result<()> {
             let mut wire = format!("notifications limit={limit}");
             if *history { wire.push_str(" history=1"); }
             if let Some(p) = pkg { wire.push_str(&format!(" pkg={p}")); }
-            provider::run(&mut conn, &wire, *json, &[], &[])
+            provider::run(&mut conn, &wire, *json || opts.out_fmt == flags::OutFmt::Json, &[], &[])
+        }
+        Cmd::Location { json } => {
+            let mut conn = Conn::connect(&opts.host, opts.port)?;
+            provider::run(&mut conn, "location", *json || opts.out_fmt == flags::OutFmt::Json, &[], &[])
         }
         Cmd::Calendar { from_ms, to_ms, days, limit, json } => {
             // Resolve window. --days N takes precedence over --from/--to if
@@ -974,7 +989,7 @@ fn run(opts: &Opts) -> io::Result<()> {
             };
             let mut conn = Conn::connect(&opts.host, opts.port)?;
             let wire = format!("calendar from={from} to={to} limit={limit}");
-            provider::run(&mut conn, &wire, *json, &[], &[])
+            provider::run(&mut conn, &wire, *json || opts.out_fmt == flags::OutFmt::Json, &[], &[])
         }
         Cmd::Submit { sel, flags } => run_submit(opts, sel.as_deref(), flags),
         Cmd::Paste  { sel, flags } => run_paste (opts, sel.as_deref(), flags),

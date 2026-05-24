@@ -24,6 +24,7 @@ public final class Server {
         public Pm pm;
         public Manifest manifest;
         public Providers providers;
+        public Location location;
         public Notifications notifs;
         public Clipboard clip;
         public Am am;
@@ -256,6 +257,9 @@ public final class Server {
                         break;
                     case "calendar":
                         resp = runCalendar(cmd);
+                        break;
+                    case "location":
+                        resp = h.location.last();
                         break;
                     case "notifications":
                         resp = runNotifications(cmd);

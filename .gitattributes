@@ -1,0 +1,7 @@
+# Linguist hints for GitHub's language stats.
+# The product is a Rust CLI + Java on-device daemon. These two count.
+# Bindings and tooling get marked vendored so they don't crowd the stats.
+
+bindings/** linguist-vendored
+scripts/**  linguist-vendored
+docs/**     linguist-documentation

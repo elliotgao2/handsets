@@ -55,6 +55,7 @@ public final class Main {
             h.pm = new Pm(sysCtx);
             h.manifest = new Manifest(sysCtx);
             h.providers = new Providers(sysCtx);
+            h.location = new Location();
             h.notifs = new Notifications();
             h.clip = new Clipboard();
             h.am = new Am(sysCtx);

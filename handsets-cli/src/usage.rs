@@ -55,6 +55,7 @@ More verbs:
   Files       hs cp device:src dst | src device:dst
   Apps        hs apps [--3rd] | hs links PKG
   Data        hs sms | hs calls | hs contacts | hs calendar | hs notif | hs clip
+              hs location          last-known GPS fix per provider [--json]
   System      hs prop [KEY [VAL]] | hs settings [NS [KEY [VAL]]]
   Diagnostics hs logs [--tail N | --follow] | hs events
   Scripting   hs shell                 interactive REPL (also batch via stdin)
