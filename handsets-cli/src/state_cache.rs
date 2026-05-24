@@ -22,6 +22,7 @@ const FRESHNESS_LIMIT: Duration = Duration::from_secs(30);
 
 fn dir() -> PathBuf {
     let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/tmp"));
     home.join(".handsets")
@@ -89,9 +90,11 @@ pub(crate) fn spawn_detached(host: &str, port: u16) -> io::Result<u32> {
 /// Stop the watcher for this port, if any.
 pub(crate) fn stop_watcher(port: u16) -> io::Result<()> {
     let p = pid_path(port);
-    let Ok(raw) = fs::read_to_string(&p) else { return Ok(()); };
-    if let Ok(pid) = raw.trim().parse::<i32>() {
-        unsafe { libc_kill(pid, 15); }   // SIGTERM
+    let Ok(raw) = fs::read_to_string(&p) else {
+        return Ok(());
+    };
+    if let Ok(pid) = raw.trim().parse::<u32>() {
+        terminate_pid(pid);
     }
     let _ = fs::remove_file(&p);
     let _ = fs::remove_file(cache_path(port));
@@ -100,13 +103,60 @@ pub(crate) fn stop_watcher(port: u16) -> io::Result<()> {
 
 fn pid_alive(port: u16) -> Option<u32> {
     let raw = fs::read_to_string(pid_path(port)).ok()?;
-    let pid: i32 = raw.trim().parse().ok()?;
-    let alive = unsafe { libc_kill(pid, 0) == 0 };   // signal 0 = existence probe
-    if alive { Some(pid as u32) } else { None }
+    let pid: u32 = raw.trim().parse().ok()?;
+    if pid_is_alive(pid) {
+        Some(pid)
+    } else {
+        None
+    }
 }
 
-// Tiny FFI shim — avoids pulling in the `libc` crate just for two calls.
-// The symbol name is renamed to dodge std::process::kill.
+#[cfg(unix)]
+fn pid_is_alive(pid: u32) -> bool {
+    // signal 0 = existence probe.
+    unsafe { libc_kill(pid as i32, 0) == 0 }
+}
+
+#[cfg(unix)]
+fn terminate_pid(pid: u32) {
+    unsafe {
+        libc_kill(pid as i32, 15);
+    } // SIGTERM
+}
+
+#[cfg(windows)]
+fn pid_is_alive(pid: u32) -> bool {
+    Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).contains(&pid.to_string()))
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn terminate_pid(pid: u32) {
+    let _ = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+#[cfg(not(any(unix, windows)))]
+fn pid_is_alive(_pid: u32) -> bool {
+    false
+}
+
+#[cfg(not(any(unix, windows)))]
+fn terminate_pid(_pid: u32) {}
+
+// Tiny Unix FFI shim — avoids pulling in the `libc` crate just for two calls.
+#[cfg(unix)]
 extern "C" {
     #[link_name = "kill"]
     fn libc_kill(pid: i32, sig: i32) -> i32;

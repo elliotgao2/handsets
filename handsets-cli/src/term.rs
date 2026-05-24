@@ -1,7 +1,7 @@
-// Shared terminal-size probe used by both `screen` (one-shot text layout) and
-// `mirror` (continuous text video). Pure FFI to `ioctl(TIOCGWINSZ)` so the
-// crate stays dep-free apart from `zune-jpeg`.
+// Shared terminal-size probe used by `screen` (one-shot text layout). Unix
+// uses direct `ioctl(TIOCGWINSZ)` FFI so the CLI stays dependency-free.
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 #[repr(C)]
 struct Winsize {
     ws_row: u16,
@@ -14,15 +14,15 @@ struct Winsize {
 const TIOCGWINSZ: u64 = 0x4008_7468;
 #[cfg(target_os = "linux")]
 const TIOCGWINSZ: u64 = 0x5413;
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-const TIOCGWINSZ: u64 = 0x5413;
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 extern "C" {
     fn ioctl(fd: i32, request: u64, ws: *mut Winsize) -> i32;
 }
 
 /// `(cols, rows)` of the terminal attached to stdout, or `None` if stdout
 /// isn't a TTY (e.g., when piped to a file or another process).
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub fn term_size() -> Option<(u16, u16)> {
     let mut ws = Winsize {
         ws_row: 0,
@@ -35,4 +35,16 @@ pub fn term_size() -> Option<(u16, u16)> {
         return None;
     }
     Some((ws.ws_col, ws.ws_row))
+}
+
+/// Windows has no `ioctl`; accept the conventional terminal env vars when
+/// present and otherwise let callers use their existing default layout.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn term_size() -> Option<(u16, u16)> {
+    let cols = std::env::var("COLUMNS").ok()?.parse().ok()?;
+    let rows = std::env::var("LINES").ok()?.parse().ok()?;
+    if cols == 0 || rows == 0 {
+        return None;
+    }
+    Some((cols, rows))
 }
