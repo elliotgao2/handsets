@@ -77,6 +77,14 @@ struct Opts {
     cmd: Cmd,
 }
 
+#[derive(Debug, Default)]
+struct SeeOpts {
+    path: Option<String>,
+    size: Option<u32>,
+    native: bool,
+    secure_check: bool,
+}
+
 #[derive(Debug)]
 enum Cmd {
     Ping,
@@ -87,11 +95,11 @@ enum Cmd {
     Snapshot,
     Screen,
     Quit,
-    Bench { n: u32 },
+    Bench { n: u32, json: bool },
     Adb(adb::Cmd),
     Connect(daemon::ConnectOpts),
     Disconnect(daemon::DisconnectOpts),
-    See(Option<String>),
+    See(SeeOpts),
     Wait { spec: String, flags: flags::ActionFlags },
     Cp { src: String, dst: String },
     ShowPkg(String),
@@ -241,7 +249,7 @@ hs dev <sub>:
   ping              round-trip the daemon socket
   snapshot          print the cached state JSON
   screen            print one screenshot frame to stdout
-  bench [-n N]      timed wire-call benchmark (default 50 iterations)
+  bench [-n N] [--json]  timed wire-call benchmark (default 50 iterations)
   quit              ask the daemon to exit (`hs drop` is friendlier)
   state-daemon      run the host-side state mirror (used by `hs use`)";
     match rest.split_first() {
@@ -258,6 +266,7 @@ hs dev <sub>:
 
 fn parse_bench(rest: &[&str]) -> Result<Cmd, String> {
     let mut n: u32 = 50;
+    let mut json = false;
     let mut j = 0;
     while j < rest.len() {
         match rest[j] {
@@ -266,11 +275,50 @@ fn parse_bench(rest: &[&str]) -> Result<Cmd, String> {
                 n = rest.get(j).ok_or("-n needs a value")?.parse()
                     .map_err(|_| "invalid -n value")?;
             }
+            "--json" => json = true,
             other => return Err(format!("unknown bench arg: {other}")),
         }
         j += 1;
     }
-    Ok(Cmd::Bench { n })
+    if n == 0 {
+        return Err("-n must be greater than 0".into());
+    }
+    Ok(Cmd::Bench { n, json })
+}
+
+fn parse_see(rest: &[&str]) -> Result<SeeOpts, String> {
+    let mut opts = SeeOpts::default();
+    let mut i = 0;
+    while i < rest.len() {
+        match rest[i] {
+            "--size" => {
+                i += 1;
+                let n: u32 = rest.get(i).ok_or("--size needs N")?.parse()
+                    .map_err(|_| "invalid --size value")?;
+                if n == 0 {
+                    return Err("--size must be greater than 0".into());
+                }
+                opts.size = Some(n);
+            }
+            "--native" | "--max" => opts.native = true,
+            "--secure-check" | "--secure" => opts.secure_check = true,
+            path if path.starts_with('-') => return Err(format!("unknown see arg: {path}")),
+            path => {
+                if opts.path.is_some() {
+                    return Err("see takes at most one PATH (extension picks format)".into());
+                }
+                opts.path = Some(path.to_string());
+            }
+        }
+        i += 1;
+    }
+    if opts.native && opts.size.is_some() {
+        return Err("see: --native and --size are mutually exclusive".into());
+    }
+    if opts.path.is_none() && (opts.size.is_some() || opts.native || opts.secure_check) {
+        return Err("see: capture flags need a PATH; bare `hs see` opens the viewer".into());
+    }
+    Ok(opts)
 }
 
 /// Shared arg parser for the simple provider verbs (`sms`, `calls`,
@@ -353,15 +401,7 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         Some((&"drop", rest)) => Cmd::Disconnect(parse_drop(rest)?),
 
         // ─── See — capture by extension, bare = viewer ───────────────
-        Some((&"see", rest)) => {
-            if rest.is_empty() {
-                Cmd::See(None)
-            } else if rest.len() == 1 {
-                Cmd::See(Some(rest[0].to_string()))
-            } else {
-                return Err("see takes at most one PATH (extension picks format)".into());
-            }
-        }
+        Some((&"see", rest)) => Cmd::See(parse_see(rest)?),
 
         // ─── Apps ─────────────────────────────────────────────────────
         Some((&"apps", rest)) => {
@@ -770,7 +810,9 @@ fn resolve_device_port(serial: &str) -> Result<u16, String> {
 
 fn run(opts: &Opts) -> io::Result<()> {
     match &opts.cmd {
-        Cmd::Bench { n } => bench(&opts.host, opts.port, *n),
+        Cmd::Bench { n, json } => {
+            bench(&opts.host, opts.port, *n, *json || opts.out_fmt == flags::OutFmt::Json)
+        }
         Cmd::TapText { query, flags } => {
             let reporter = output::Reporter::new(flags.out(opts.out_fmt));
             let mut sess = session::Session::connect(
@@ -810,7 +852,7 @@ fn run(opts: &Opts) -> io::Result<()> {
         Cmd::Find { selector, flags } => {
             run_find(&opts.host, opts.port, opts.out_fmt, selector, flags)
         }
-        Cmd::See(dest) => run_see(&opts.host, opts.port, dest.as_deref()),
+        Cmd::See(see) => run_see(&opts.host, opts.port, see),
         Cmd::Wait { spec, flags } => {
             run_wait(&opts.host, opts.port, opts.out_fmt, spec, flags)
         }
@@ -1237,9 +1279,9 @@ fn run_ui(host: &str, port: u16, format: UiFormat, all: bool) -> io::Result<()> 
 }
 
 /// `hs see [PATH]` — bare opens the viewer; otherwise extension picks
-/// the format (jpg/png screenshot, xml/json UI hierarchy).
-fn run_see(host: &str, port: u16, dest: Option<&str>) -> io::Result<()> {
-    let Some(path) = dest else {
+/// the format (jpg/webp/png screenshot, xml/json UI hierarchy).
+fn run_see(host: &str, port: u16, opts: &SeeOpts) -> io::Result<()> {
+    let Some(path) = opts.path.as_deref() else {
         return mirror::run(host, port, mirror::Args::default());
     };
     let ext = std::path::Path::new(path)
@@ -1249,10 +1291,14 @@ fn run_see(host: &str, port: u16, dest: Option<&str>) -> io::Result<()> {
         .unwrap_or_default();
     let mut conn = Conn::connect(host, port)?;
     let bytes: Vec<u8> = match ext.as_str() {
-        "jpg" | "jpeg" => conn.call("screenshot max=1")?,
-        "png"          => conn.call("screenshot max=1 fmt=png")?,
+        "jpg" | "jpeg" => conn.call(&see_screenshot_wire(opts, "jpeg"))?,
+        "webp"         => conn.call(&see_screenshot_wire(opts, "webp"))?,
+        "png"          => conn.call(&see_screenshot_wire(opts, "png"))?,
         "json"         => conn.call("dump_active")?,
         "xml" => {
+            if opts.size.is_some() || opts.native || opts.secure_check {
+                return Err(io::Error::other("see: screenshot flags only apply to jpg/webp/png"));
+            }
             let body = conn.call("dump_active")?;
             let text = std::str::from_utf8(&body)
                 .map_err(|e| io::Error::other(format!("dump not utf-8: {e}")))?;
@@ -1261,7 +1307,7 @@ fn run_see(host: &str, port: u16, dest: Option<&str>) -> io::Result<()> {
             xml_dump::render(&json, 0).into_bytes()
         }
         other => return Err(io::Error::other(
-            format!("see: unsupported extension '.{other}' (jpg|png|xml|json)"))),
+            format!("see: unsupported extension '.{other}' (jpg|webp|png|xml|json)"))),
     };
     if bytes.starts_with(b"ERR:secure-window:") {
         let win = String::from_utf8_lossy(&bytes[b"ERR:secure-window:".len()..]);
@@ -1277,6 +1323,22 @@ fn run_see(host: &str, port: u16, dest: Option<&str>) -> io::Result<()> {
     std::fs::write(path, &bytes)?;
     eprintln!("saved {} bytes to {path}", bytes.len());
     Ok(())
+}
+
+fn see_screenshot_wire(opts: &SeeOpts, fmt: &str) -> String {
+    let mut wire = String::from("screenshot");
+    if opts.native || opts.size.is_none() {
+        wire.push_str(" max=1");
+    } else if let Some(size) = opts.size {
+        wire.push_str(&format!(" size={size}"));
+    }
+    if fmt != "jpeg" {
+        wire.push_str(&format!(" fmt={fmt}"));
+    }
+    if opts.secure_check {
+        wire.push_str(" secure_check=1");
+    }
+    wire
 }
 
 /// `hs wait <spec>` — smart-dispatch on `spec` shape. `flags` lets RPA
@@ -1940,8 +2002,29 @@ impl Conn {
 
 // ---------- bench ----------
 
-fn bench(host: &str, port: u16, n: u32) -> io::Result<()> {
+struct BenchCase {
+    label: &'static str,
+    wire: &'static str,
+}
+
+struct BenchResult {
+    label: &'static str,
+    wire: &'static str,
+    min_ms: f64,
+    p50_ms: f64,
+    p90_ms: f64,
+    p95_ms: f64,
+    p99_ms: f64,
+    mean_ms: f64,
+    stddev_ms: f64,
+    bytes: usize,
+    errors: u32,
+    last_error: Option<String>,
+}
+
+fn bench(host: &str, port: u16, n: u32, json_output: bool) -> io::Result<()> {
     let mut conn = Conn::connect(host, port)?;
+    let meta = bench_metadata(&mut conn, port)?;
     // Discover available commands by probing — start with cheap ones.
     // Warm the default mirror first so the size-sweep timing doesn't include
     // the one-time VirtualDisplay creation for each new size.
@@ -1952,50 +2035,275 @@ fn bench(host: &str, port: u16, n: u32) -> io::Result<()> {
     // Then re-warm 768 so the bench starts from the default.
     let _ = conn.call("screenshot size=768")?;
 
-    let cases: &[(&str, &str)] = &[
-        ("ping",                          "ping"),
-        ("dump",                          "dump"),
-        ("dump_active",                   "dump_active"),
-        ("screenshot 480 q80 jpeg",       "screenshot size=480"),
-        ("screenshot 768 q80 jpeg",       "screenshot size=768"),
-        ("screenshot 1080 q80 jpeg",      "screenshot size=1080"),
-        ("screenshot 1080 q95 jpeg",      "screenshot size=1080 q=95"),
-        ("screenshot native q80 jpeg",    "screenshot max=1"),
-        ("screenshot 768 q95 jpeg",       "screenshot size=768 q=95"),
-        ("screenshot 768 png",            "screenshot size=768 fmt=png"),
+    let cases: &[BenchCase] = &[
+        BenchCase { label: "ping",                       wire: "ping" },
+        BenchCase { label: "info",                       wire: "info" },
+        BenchCase { label: "wm_info",                    wire: "wm_info" },
+        BenchCase { label: "state top",                  wire: "state top" },
+        BenchCase { label: "wait_for_idle",              wire: "wait_for_idle idle_ms=0 timeout_ms=1000" },
+        BenchCase { label: "dump_active",                wire: "dump_active" },
+        BenchCase { label: "dump",                       wire: "dump" },
+        BenchCase { label: "screenshot 480 q80 jpeg",    wire: "screenshot size=480" },
+        BenchCase { label: "screenshot 768 q80 jpeg",    wire: "screenshot size=768" },
+        BenchCase { label: "screenshot 1080 q80 jpeg",   wire: "screenshot size=1080" },
+        BenchCase { label: "screenshot 1080 q95 jpeg",   wire: "screenshot size=1080 q=95" },
+        BenchCase { label: "screenshot native q80 jpeg", wire: "screenshot max=1" },
+        BenchCase { label: "screenshot 768 q95 jpeg",    wire: "screenshot size=768 q=95" },
+        BenchCase { label: "screenshot 768 q80 webp",    wire: "screenshot size=768 fmt=webp" },
     ];
 
-    eprintln!("warm-socket benchmark, n={n} per command");
-    eprintln!("{:<30}  {:>10}  {:>10}  {:>10}  {:>12}", "command", "min ms", "p50 ms", "p95 ms", "bytes");
-    for (label, wire) in cases {
+    let mut results = Vec::with_capacity(cases.len());
+    if !json_output {
+        eprintln!("warm-socket benchmark, n={n} per command");
+        eprintln!(
+            "device: {}{}{}  host: {}/{}  hs {}",
+            meta.device_label(),
+            meta.display_label(),
+            meta.top_label(),
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+            env!("CARGO_PKG_VERSION"),
+        );
+        eprintln!(
+            "{:<30}  {:>9}  {:>9}  {:>9}  {:>9}  {:>9}  {:>12}  {:>6}",
+            "command", "min ms", "p50 ms", "p95 ms", "p99 ms", "mean ms", "bytes", "errors"
+        );
+    }
+    for case in cases {
         // Warm-up.
-        let _ = conn.call(wire)?;
+        let _ = conn.call(case.wire);
         let mut samples = Vec::with_capacity(n as usize);
         let mut last_len = 0usize;
+        let mut errors = 0u32;
+        let mut last_error = None;
         for _ in 0..n {
             let t0 = Instant::now();
-            let body = conn.call(wire)?;
-            samples.push(t0.elapsed());
-            last_len = body.len();
+            match conn.call(case.wire) {
+                Ok(body) if body.starts_with(b"ERR:") => {
+                    errors += 1;
+                    last_error = Some(String::from_utf8_lossy(&body).into_owned());
+                }
+                Ok(body) => {
+                    samples.push(t0.elapsed());
+                    last_len = body.len();
+                }
+                Err(e) => {
+                    errors += 1;
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+        if samples.is_empty() {
+            let result = BenchResult {
+                label: case.label,
+                wire: case.wire,
+                min_ms: 0.0,
+                p50_ms: 0.0,
+                p90_ms: 0.0,
+                p95_ms: 0.0,
+                p99_ms: 0.0,
+                mean_ms: 0.0,
+                stddev_ms: 0.0,
+                bytes: last_len,
+                errors,
+                last_error,
+            };
+            if !json_output {
+                eprintln!(
+                    "{:<30}  {:>9}  {:>9}  {:>9}  {:>9}  {:>9}  {:>12}  {:>6}",
+                    case.label, "-", "-", "-", "-", "-", last_len, errors,
+                );
+            }
+            results.push(result);
+            continue;
         }
         samples.sort();
-        let min = samples[0];
-        let p50 = samples[samples.len() / 2];
-        let p95 = samples[(samples.len() as f64 * 0.95) as usize];
-        eprintln!(
-            "{:<30}  {:>10.3}  {:>10.3}  {:>10.3}  {:>12}",
-            label,
-            ms(min),
-            ms(p50),
-            ms(p95),
-            last_len,
-        );
+        let min_ms = ms(samples[0]);
+        let p50_ms = ms(percentile(&samples, 0.50));
+        let p90_ms = ms(percentile(&samples, 0.90));
+        let p95_ms = ms(percentile(&samples, 0.95));
+        let p99_ms = ms(percentile(&samples, 0.99));
+        let mean_ms = samples.iter().map(|d| ms(*d)).sum::<f64>() / samples.len() as f64;
+        let variance = samples.iter()
+            .map(|d| {
+                let delta = ms(*d) - mean_ms;
+                delta * delta
+            })
+            .sum::<f64>() / samples.len() as f64;
+        let result = BenchResult {
+            label: case.label,
+            wire: case.wire,
+            min_ms,
+            p50_ms,
+            p90_ms,
+            p95_ms,
+            p99_ms,
+            mean_ms,
+            stddev_ms: variance.sqrt(),
+            bytes: last_len,
+            errors,
+            last_error,
+        };
+        if !json_output {
+            eprintln!(
+                "{:<30}  {:>9.3}  {:>9.3}  {:>9.3}  {:>9.3}  {:>9.3}  {:>12}  {:>6}",
+                result.label,
+                result.min_ms,
+                result.p50_ms,
+                result.p95_ms,
+                result.p99_ms,
+                result.mean_ms,
+                result.bytes,
+                result.errors,
+            );
+        }
+        results.push(result);
+    }
+    if json_output {
+        println!("{}", bench_json(n, &meta, &results));
     }
     Ok(())
 }
 
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1000.0
+}
+
+fn percentile(samples: &[Duration], q: f64) -> Duration {
+    let idx = ((samples.len() as f64 * q).ceil() as usize)
+        .saturating_sub(1)
+        .min(samples.len() - 1);
+    samples[idx]
+}
+
+struct BenchMeta {
+    model: String,
+    manufacturer: String,
+    sdk: String,
+    release: String,
+    width: String,
+    height: String,
+    rotation: String,
+    top_activity: String,
+}
+
+impl BenchMeta {
+    fn device_label(&self) -> String {
+        let name = match (self.manufacturer.is_empty(), self.model.is_empty()) {
+            (false, false) => format!("{} {}", self.manufacturer, self.model),
+            (_, false) => self.model.clone(),
+            _ => "unknown device".into(),
+        };
+        let os = match (self.release.is_empty(), self.sdk.is_empty()) {
+            (false, false) => format!(" Android {} SDK {}", self.release, self.sdk),
+            (true, false) => format!(" SDK {}", self.sdk),
+            (false, true) => format!(" Android {}", self.release),
+            (true, true) => String::new(),
+        };
+        format!("{name}{os}")
+    }
+
+    fn display_label(&self) -> String {
+        if self.width.is_empty() || self.height.is_empty() {
+            String::new()
+        } else if self.rotation.is_empty() {
+            format!("  display: {}x{}", self.width, self.height)
+        } else {
+            format!("  display: {}x{} r{}", self.width, self.height, self.rotation)
+        }
+    }
+
+    fn top_label(&self) -> String {
+        if self.top_activity.is_empty() || self.top_activity == "null" {
+            String::new()
+        } else {
+            format!("  top: {}", self.top_activity)
+        }
+    }
+}
+
+fn bench_metadata(conn: &mut Conn, port: u16) -> io::Result<BenchMeta> {
+    let snap = match state_cache::read_cached(port) {
+        Some(b) => b,
+        None => conn.call("state device")?,
+    };
+    let state = json::parse(std::str::from_utf8(&snap).unwrap_or("{}"))
+        .unwrap_or(json::Value::Null);
+    let get = |k: &str| json_field_string(&state, k);
+    Ok(BenchMeta {
+        model: get("model"),
+        manufacturer: get("manufacturer"),
+        sdk: get("sdk"),
+        release: get("release"),
+        width: get("width"),
+        height: get("height"),
+        rotation: get("rotation"),
+        top_activity: get("top_activity"),
+    })
+}
+
+fn json_field_string(v: &json::Value, key: &str) -> String {
+    if let json::Value::Obj(fields) = v {
+        for (k, val) in fields {
+            if k == key {
+                return match val {
+                    json::Value::Str(s) => s.clone(),
+                    json::Value::Num(n) => n.to_string(),
+                    json::Value::Bool(b) => b.to_string(),
+                    _ => String::new(),
+                };
+            }
+        }
+    }
+    String::new()
+}
+
+fn bench_json(n: u32, meta: &BenchMeta, results: &[BenchResult]) -> String {
+    let metadata = json_out::Obj::new()
+        .s("model", &meta.model)
+        .s("manufacturer", &meta.manufacturer)
+        .s("sdk", &meta.sdk)
+        .s("release", &meta.release)
+        .s("width", &meta.width)
+        .s("height", &meta.height)
+        .s("rotation", &meta.rotation)
+        .s("top_activity", &meta.top_activity)
+        .s("host_os", std::env::consts::OS)
+        .s("host_arch", std::env::consts::ARCH)
+        .s("hs_version", env!("CARGO_PKG_VERSION"))
+        .finish();
+    let mut cases = String::from("[");
+    for (i, r) in results.iter().enumerate() {
+        if i > 0 { cases.push(','); }
+        cases.push_str(&bench_result_json(r));
+    }
+    cases.push(']');
+    json_out::Obj::new()
+        .s("type", "hs_bench")
+        .n("n", n as i64)
+        .s("mode", "warm_socket")
+        .raw("metadata", &metadata)
+        .raw("cases", &cases)
+        .finish()
+}
+
+fn bench_result_json(r: &BenchResult) -> String {
+    let mut s = json_out::Obj::new()
+        .s("command", r.label)
+        .s("wire", r.wire)
+        .raw("min_ms", &format!("{:.3}", r.min_ms))
+        .raw("p50_ms", &format!("{:.3}", r.p50_ms))
+        .raw("p90_ms", &format!("{:.3}", r.p90_ms))
+        .raw("p95_ms", &format!("{:.3}", r.p95_ms))
+        .raw("p99_ms", &format!("{:.3}", r.p99_ms))
+        .raw("mean_ms", &format!("{:.3}", r.mean_ms))
+        .raw("stddev_ms", &format!("{:.3}", r.stddev_ms))
+        .n("bytes", r.bytes as i64)
+        .n("errors", r.errors as i64);
+    if let Some(e) = r.last_error.as_deref() {
+        s = s.s("last_error", e);
+    }
+    s.finish()
 }
 
 fn print_devices() -> io::Result<()> {

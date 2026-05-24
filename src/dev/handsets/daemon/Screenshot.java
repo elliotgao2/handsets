@@ -24,7 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * an ImageReader at the output resolution. Caller-controlled args:
  *   size    — long-edge in pixels (default 768)
  *   quality — JPEG quality 1..100 (default 80, ignored for PNG)
- *   format  — "jpeg" (default) or "png"
+ *   format  — "jpeg" (default), "webp", or "png"
  *   max=1   — shortcut for native resolution
  *
  * Mirror is recreated on size change (~50 ms one-time cost). Encode-only
@@ -131,29 +131,24 @@ public final class Screenshot {
     public byte[] capture(CaptureArgs args) {
         int longEdge = resolveLongEdge(args);
         int quality = clampQuality(args.quality);
-        boolean png = "png".equalsIgnoreCase(args.format);
+        boolean png = isPng(args.format);
 
         byte[] result;
         if (mirrorAvailable) {
             try {
-                result = mirrorCapture(longEdge, quality, png);
+                result = mirrorCapture(longEdge, quality, args.format);
             } catch (Throwable t) {
                 System.err.println("screenshot: mirror.capture failed, falling back: " + t);
-                result = fallbackCapture(longEdge, quality, png);
+                result = fallbackCapture(longEdge, quality, args.format);
             }
         } else {
-            result = fallbackCapture(longEdge, quality, png);
+            result = fallbackCapture(longEdge, quality, args.format);
         }
 
-        // FLAG_SECURE detection. When a foreground window asks the
-        // system not to be screenshotted, our VirtualDisplay mirror /
-        // UiAutomation fallback both succeed but emit an all-black
-        // frame. That compresses to a few KB at *any* resolution. Use
-        // size as a cheap pre-check and only walk `dumpsys window` if
-        // the frame looks suspicious; surface the offending window
-        // instead of handing the caller a useless black image.
+        // Optional FLAG_SECURE detection. It shells out to dumpsys, so keep
+        // the hot screenshot path pure unless the caller explicitly asks.
         int threshold = png ? 32 * 1024 : 12 * 1024;
-        if (result.length < threshold) {
+        if (args.secureCheck && result.length < threshold) {
             String secureWin = findSecureWindow();
             if (secureWin != null) {
                 return ("ERR:secure-window:" + secureWin)
@@ -205,7 +200,7 @@ public final class Screenshot {
         return false;
     }
 
-    private byte[] mirrorCapture(int longEdge, int quality, boolean png) throws Exception {
+    private byte[] mirrorCapture(int longEdge, int quality, String format) throws Exception {
         Mirror m;
         synchronized (mirrors) {
             m = mirrors.get(longEdge);
@@ -214,10 +209,10 @@ public final class Screenshot {
                 mirrors.put(longEdge, m);
             }
         }
-        return m.encodeLatest(png, quality);
+        return m.encodeLatest(format, quality);
     }
 
-    private byte[] fallbackCapture(int longEdge, int quality, boolean png) {
+    private byte[] fallbackCapture(int longEdge, int quality, String format) {
         Bitmap full = null;
         Bitmap scaled = null;
         try {
@@ -231,7 +226,7 @@ public final class Screenshot {
                 scaled = Bitmap.createScaledBitmap(full, tw, th, true);
             }
             Bitmap toEncode = scaled != null ? scaled : full;
-            return encode(toEncode, png, quality);
+            return encode(toEncode, format, quality);
         } catch (Throwable t) {
             return ("ERR:screenshot-failed:" + t.getClass().getSimpleName()
                     + ":" + t.getMessage()).getBytes();
@@ -241,14 +236,27 @@ public final class Screenshot {
         }
     }
 
-    private static byte[] encode(Bitmap bmp, boolean png, int quality) {
+    private static byte[] encode(Bitmap bmp, String format, int quality) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream(64 * 1024);
-        if (png) {
-            bmp.compress(Bitmap.CompressFormat.PNG, 100, baos);
-        } else {
-            bmp.compress(Bitmap.CompressFormat.JPEG, quality, baos);
-        }
+        Bitmap.CompressFormat cf = compressFormat(format);
+        bmp.compress(cf, cf == Bitmap.CompressFormat.PNG ? 100 : quality, baos);
         return baos.toByteArray();
+    }
+
+    private static boolean isPng(String format) {
+        return "png".equalsIgnoreCase(format);
+    }
+
+    private static Bitmap.CompressFormat compressFormat(String format) {
+        if (isPng(format)) return Bitmap.CompressFormat.PNG;
+        if ("webp".equalsIgnoreCase(format)) {
+            try {
+                return Bitmap.CompressFormat.valueOf("WEBP_LOSSY");
+            } catch (IllegalArgumentException ignored) {
+                return Bitmap.CompressFormat.valueOf("WEBP");
+            }
+        }
+        return Bitmap.CompressFormat.JPEG;
     }
 
     private int resolveLongEdge(CaptureArgs args) {
@@ -292,6 +300,7 @@ public final class Screenshot {
         public int bitrateKbps = 0;     // 0 = default (6000 for stream_h264)
         public int tile = 0;            // 0 = default (128 for stream_tilejpeg)
         public int gopSec = 0;          // 0 = default (1 for stream_h264)
+        public boolean secureCheck = false;
     }
 
     // ---- streaming hook ----
@@ -440,7 +449,7 @@ public final class Screenshot {
             return m;
         }
 
-        byte[] encodeLatest(boolean png, int quality) {
+        byte[] encodeLatest(String format, int quality) {
             synchronized (lock) {
                 if (cached == null) throw new IllegalStateException("no frame yet");
                 Bitmap toEncode;
@@ -453,8 +462,8 @@ public final class Screenshot {
                 }
                 try {
                     ByteArrayOutputStream baos = new ByteArrayOutputStream(64 * 1024);
-                    if (png) toEncode.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                    else toEncode.compress(Bitmap.CompressFormat.JPEG, quality, baos);
+                    Bitmap.CompressFormat cf = compressFormat(format);
+                    toEncode.compress(cf, cf == Bitmap.CompressFormat.PNG ? 100 : quality, baos);
                     return baos.toByteArray();
                 } finally {
                     if (recycle) toEncode.recycle();

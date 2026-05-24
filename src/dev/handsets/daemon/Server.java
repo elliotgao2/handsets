@@ -504,6 +504,10 @@ public final class Server {
                     case "gop":
                         a.gopSec = Integer.parseInt(v);
                         break;
+                    case "secure_check":
+                    case "secure":
+                        a.secureCheck = !"0".equals(v) && !"false".equalsIgnoreCase(v);
+                        break;
                     default:
                         // unknown key — ignore so old clients keep working
                 }

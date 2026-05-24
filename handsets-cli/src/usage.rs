@@ -39,7 +39,7 @@ Shared action flags (tap, type, find, wait, submit, paste, act):
   --json               emit {\"verb\":…, \"ok\":…, \"result\"|\"error\":…} per line
 
 More verbs:
-  Capture     hs see [PATH.jpg|.png|.xml|.json]
+  Capture     hs see [PATH.jpg|.webp|.png|.xml|.json] [--size N|--native]
               hs ui [-i|--tree|--json|--xml] [--all]
               hs info | hs show [top|PKG]
   Input       hs tap X Y | hs swipe DIR | hs go back|home|recents|…
@@ -77,6 +77,6 @@ Global options:
   --json             default output to JSON (or set HS_FORMAT=json)
 
 Low-level / debugging:
-  hs dev <sub>       ping | snapshot | screen | bench | quit | state-daemon
+  hs dev <sub>       ping | snapshot | screen | bench [-n N] [--json] | quit | state-daemon
   hs do <wire>       fire one raw wire command (see docs/wire.md)
 ";

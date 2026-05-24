@@ -24,6 +24,9 @@ $ hs wait "Welcome"                   # block on success text
 ```
 
 `ui → label → tap → wait`. Pipe `hs ui` into a model, take the label, hand it back.
+Raw `screenshot` defaults to 768px-long-edge JPEG, the fast agent path;
+`hs see out.jpg` saves a native-resolution export unless you pass `--size 768`.
+Use WebP for compact lossy exports and PNG only for debug/lossless files.
 
 |  | **Handsets** | `adb shell` | uiautomator2 | Appium |
 |---|---|---|---|---|
@@ -76,7 +79,7 @@ Full protocol: [docs/wire.md](docs/wire.md). Reflection details and sharp edges:
 curl -fsSL https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh | bash
 ```
 
-Needs `adb` on `$PATH`. macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.24`.
+Needs `adb` on `$PATH`. macOS and Linux. Pin a version with `HANDSETS_VERSION=v0.1.25`.
 
 Python bindings: `pip install handsets`.
 

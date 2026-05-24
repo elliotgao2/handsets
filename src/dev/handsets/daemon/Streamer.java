@@ -79,7 +79,7 @@ final class Streamer {
     private void sendOne() throws IOException {
         byte[] jpeg;
         try {
-            jpeg = mirror.encodeLatest(false, quality);
+            jpeg = mirror.encodeLatest("jpeg", quality);
         } catch (IllegalStateException noFrame) {
             // Mirror hasn't received a frame yet — skip this tick.
             return;

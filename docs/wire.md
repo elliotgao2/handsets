@@ -30,15 +30,21 @@ dump_active                                           active window only
 open and push continuously.
 
 ```
-screenshot       [size=N] [q=N] [fmt=jpeg|png] [max=1]
+screenshot       [size=N] [q=N] [fmt=jpeg|webp|png] [max=1] [secure_check=1]
 stream           [size=N] [q=N] [fps=N]                  JPEG, native by default
 stream_h264      [size=N] [max=1] [fps=N] [bitrate=KBPS] [gop=SEC]
 stream_tilejpeg  [size=N] [q=N] [tile=N]
 keyframe                                                 force IDR on all H.264 streams
 ```
 
-`size=N` = long edge in pixels. `q` clamps to [1, 100], default 80.
-`max=1` = native resolution (overrides `size`).
+`size=N` = long edge in pixels, default 768. `q` clamps to [1, 100],
+default 80. `fmt=jpeg` is the default and preferred hot path for agents.
+`fmt=webp` is available for compact lossy exports, though it may encode
+slower than JPEG on emulators. `fmt=png` is intended for debug/export only;
+Android's PNG encoder is much slower than JPEG.
+`max=1` = native resolution (overrides `size`). `secure_check=1` enables
+an extra FLAG_SECURE probe for suspiciously small black frames; it is off
+by default because it shells out to `dumpsys window`.
 
 ## Input
 
