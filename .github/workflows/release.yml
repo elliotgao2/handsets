@@ -56,10 +56,11 @@ jobs:
           # Both macOS targets cross-build from the Apple Silicon runner —
           # macos-13 (Intel) is notably slower and the x86_64 binary cross-
           # builds cleanly via Rust's standard target install.
-          - { name: macos-arm64,   os: macos-14,       target: aarch64-apple-darwin,         viewer: true  }
-          - { name: macos-x86_64,  os: macos-14,       target: x86_64-apple-darwin,          viewer: true  }
-          - { name: linux-x86_64,  os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,     viewer: false }
-          - { name: linux-aarch64, os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,    viewer: false, cross: true }
+          - { name: macos-arm64,     os: macos-14,       target: aarch64-apple-darwin,         viewer: true,  exe: '',     archive: tar.gz }
+          - { name: macos-x86_64,    os: macos-14,       target: x86_64-apple-darwin,          viewer: true,  exe: '',     archive: tar.gz }
+          - { name: linux-x86_64,    os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,     viewer: false, exe: '',     archive: tar.gz }
+          - { name: linux-aarch64,   os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,    viewer: false, exe: '',     archive: tar.gz, cross: true }
+          - { name: windows-x86_64,  os: windows-latest, target: x86_64-pc-windows-msvc,       viewer: false, exe: '.exe', archive: zip }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -115,9 +116,9 @@ jobs:
           set -euo pipefail
           stage="dist/handsets"
           mkdir -p "$stage"
-          cp "handsets-cli/target/${{ matrix.target }}/release/hs" "$stage/"
+          cp "handsets-cli/target/${{ matrix.target }}/release/hs${{ matrix.exe }}" "$stage/"
           if [[ "${{ matrix.viewer }}" == "true" ]]; then
-            cp "handsets-viewer/target/${{ matrix.target }}/release/handsets-viewer" "$stage/"
+            cp "handsets-viewer/target/${{ matrix.target }}/release/handsets-viewer${{ matrix.exe }}" "$stage/"
           fi
           cp build/hs.jar "$stage/hs.jar"
           [[ -f LICENSE ]] && cp LICENSE "$stage/" || true
@@ -128,8 +129,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          asset="handsets-${{ matrix.name }}.tar.gz"
-          tar -C dist -czf "$asset" handsets
+          asset="handsets-${{ matrix.name }}.${{ matrix.archive }}"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            powershell -NoProfile -Command "Compress-Archive -Path 'dist/handsets' -DestinationPath '$asset'"
+          else
+            tar -C dist -czf "$asset" handsets
+          fi
           if command -v sha256sum >/dev/null; then
             sha256sum "$asset" > "$asset.sha256"
           else
@@ -140,8 +145,8 @@ jobs:
         with:
           name: handsets-${{ matrix.name }}
           path: |
-            handsets-${{ matrix.name }}.tar.gz
-            handsets-${{ matrix.name }}.tar.gz.sha256
+            handsets-${{ matrix.name }}.${{ matrix.archive }}
+            handsets-${{ matrix.name }}.${{ matrix.archive }}.sha256
           if-no-files-found: error
 
   # ─── Publish the GitHub release (tag pushes only) ──────────────────────
