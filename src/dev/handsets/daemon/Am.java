@@ -33,6 +33,12 @@ final class Am {
     byte[] start(String component, String action, String data, int flags) {
         try {
             ComponentName cn = parseComponent(component);
+            if (cn == null && component != null && component.indexOf('/') < 0) {
+                // Bare package name — resolve the launcher activity the same
+                // way `monkey -p pkg 1` and Launcher.startActivity do.
+                Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(component);
+                if (launch != null) cn = launch.getComponent();
+            }
             if (cn == null) return err("bad-component:" + component);
             Intent intent = new Intent();
             intent.setComponent(cn);
