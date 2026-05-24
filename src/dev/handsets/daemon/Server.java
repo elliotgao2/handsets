@@ -325,9 +325,22 @@ public final class Server {
             }
             InputArgs a = parseInputArgs(cmd);
             switch (head) {
-                case "tap":
+                case "tap": {
+                    // Reject coordinates outside the display. Off-screen taps
+                    // dispatch into nothing but the kernel input layer happily
+                    // accepts them and we'd return "ok" — the worst failure
+                    // mode for a UI driver. Callers that match an a11y node
+                    // whose post-scroll bounds went stale should see an
+                    // explicit OFF_SCREEN and retry/refresh.
+                    android.graphics.Point sz = h.shot.sourceSize();
+                    if (sz.x > 0 && sz.y > 0
+                            && (a.x < 0 || a.x >= sz.x || a.y < 0 || a.y >= sz.y)) {
+                        return errBytes("OFF_SCREEN:x=" + a.x + " y=" + a.y
+                                + " display=" + sz.x + "x" + sz.y);
+                    }
                     h.input.tap(a.x, a.y);
                     break;
+                }
                 case "swipe":
                     h.input.swipe(a.x1, a.y1, a.x2, a.y2, a.dur > 0 ? a.dur : 300);
                     break;
