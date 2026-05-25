@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% set has_page = page is defined and page %}
+  {% set page_meta = page.meta if has_page else {} %}
+  {% set page_title = page_meta.title or page.title if has_page else config.site_name %}
+  {% set page_description = page_meta.description or config.site_description %}
+  {% set canonical_url = page.canonical_url if has_page else config.site_url %}
+  <meta property="og:type" content="{% if page_meta.date %}article{% else %}website{% endif %}">
+  <meta property="og:title" content="{{ page_title }}{% if page_title != config.site_name %} - {{ config.site_name }}{% endif %}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ canonical_url }}">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ page_title }}{% if page_title != config.site_name %} - {{ config.site_name }}{% endif %}">
+  <meta name="twitter:description" content="{{ page_description }}">
+  {% if page_meta.date %}
+  <meta property="article:published_time" content="{{ page_meta.date }}">
+  {% endif %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "{% if page_meta.date %}TechArticle{% else %}WebPage{% endif %}",
+    "headline": {{ page_title|tojson }},
+    "description": {{ page_description|tojson }},
+    "url": {{ canonical_url|tojson }},
+    {% if page_meta.date %}
+    "datePublished": {{ page_meta.date|string|tojson }},
+    {% endif %}
+    "publisher": {
+      "@type": "Organization",
+      "name": {{ config.site_name|tojson }},
+      "url": {{ config.site_url|tojson }}
+    }
+  }
+  </script>
+{% endblock %}
