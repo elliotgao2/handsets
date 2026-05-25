@@ -41,6 +41,7 @@ Shared action flags (tap, type, find, wait, submit, paste, act):
 More verbs:
   Capture     hs see [PATH.jpg|.webp|.png|.xml|.json] [--size N|--native]
               hs ui [-i|--tree|--json|--xml] [--all]
+              hs tui                   keyboard-driven interactive inspector
               hs info | hs show [top|PKG]
   Input       hs tap X Y | hs swipe DIR | hs go back|home|recents|…
               hs type TEXT                  keystrokes to focused field

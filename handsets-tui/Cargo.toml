@@ -1,0 +1,22 @@
+[package]
+name = "handsets-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Keyboard-driven terminal UI inspector for the handsets daemon"
+
+[[bin]]
+name = "handsets-tui"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false

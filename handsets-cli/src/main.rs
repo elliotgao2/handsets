@@ -32,6 +32,7 @@ mod snapshot;
 mod state_cache;
 mod tap_text;
 mod term;
+mod tui;
 mod ui_dump;
 mod usage;
 mod xml_dump;
@@ -125,6 +126,7 @@ enum Cmd {
     Location { json: bool },
     Notif { pkg: Option<String>, history: bool, limit: u32, json: bool },
     Clip { text: Option<String>, watch: bool, interval_ms: u64 },
+    Tui,
 }
 
 // SMS type codes — Android Telephony.TextBasedSmsColumns.
@@ -403,6 +405,14 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
 
         // ─── See — capture by extension, bare = viewer ───────────────
         Some((&"see", rest)) => Cmd::See(parse_see(rest)?),
+
+        // ─── TUI — keyboard-driven inspector ─────────────────────────
+        Some((&"tui", rest)) => {
+            if !rest.is_empty() {
+                return Err(format!("tui takes no positional args (got: {})", rest.join(" ")));
+            }
+            Cmd::Tui
+        }
 
         // ─── Apps ─────────────────────────────────────────────────────
         Some((&"apps", rest)) => {
@@ -877,6 +887,7 @@ fn run(opts: &Opts) -> io::Result<()> {
         Cmd::ShowPkg(pkg) => run_show_pkg(&opts.host, opts.port, pkg),
         Cmd::Info => run_info(&opts.host, opts.port),
         Cmd::Ui { format, all } => run_ui(&opts.host, opts.port, *format, *all),
+        Cmd::Tui => tui::run(&opts.host, opts.port),
         Cmd::SettingsListAll => {
             // Three Shell-passthrough calls glued client-side with header
             // lines — keeps the daemon's shell command simple (no quote

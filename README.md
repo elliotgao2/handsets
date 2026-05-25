@@ -24,7 +24,9 @@ $ hs wait "Welcome"                   # block on success text
 ```
 
 `ui → label → tap → wait`. Pipe `hs ui` into a model, take the label, hand it back.
-Raw `screenshot` defaults to 768px-long-edge JPEG, the fast agent path;
+For interactive exploration from the keyboard, `hs tui` opens the same element list
+in a terminal UI: arrow keys to move, Enter to tap or fill, refreshes on idle after
+each action. Raw `screenshot` defaults to 768px-long-edge JPEG, the fast agent path;
 `hs see out.jpg` saves a native-resolution export unless you pass `--size 768`.
 Use WebP for compact lossy exports and PNG only for debug/lossless files.
 

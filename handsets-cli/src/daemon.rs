@@ -61,20 +61,31 @@ pub(crate) fn locate_jar() -> io::Result<PathBuf> {
 /// Try to find the handsets-viewer binary. PATH first, then alongside our
 /// binary, then the curl-installer layout under ~/.handsets.
 pub(crate) fn locate_viewer() -> Option<PathBuf> {
-    if let Ok(p) = which("handsets-viewer") { return Some(p); }
+    locate_sibling_binary("handsets-viewer")
+}
+
+/// Try to find the handsets-tui binary. Same probe order as the viewer.
+pub(crate) fn locate_tui() -> Option<PathBuf> {
+    locate_sibling_binary("handsets-tui")
+}
+
+fn locate_sibling_binary(name: &str) -> Option<PathBuf> {
+    if let Ok(p) = which(name) { return Some(p); }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            for cand in [
-                dir.join("handsets-viewer"),
-                dir.join("../../handsets-viewer/target/release/handsets-viewer"),
-                dir.join("../../../handsets-viewer/target/release/handsets-viewer"),
+            for rel in [
+                String::from(name),
+                // Dev checkout: handsets-cli/target/release/hs → ../../<crate>/target/release/<bin>
+                format!("../../{name}/target/release/{name}"),
+                format!("../../../{name}/target/release/{name}"),
             ] {
+                let cand = dir.join(rel);
                 if cand.is_file() { return Some(cand); }
             }
         }
     }
     if let Some(home) = std::env::var_os("HOME") {
-        let p = PathBuf::from(home).join(".handsets/handsets-viewer");
+        let p = PathBuf::from(home).join(format!(".handsets/{name}"));
         if p.is_file() { return Some(p); }
     }
     None
