@@ -25,7 +25,9 @@ Or you can use a visual tool, which is easier to explore but often separate from
 `hs tui` is the missing middle: a terminal UI that lets you drive an Android app from the keyboard while showing the same action rows you would put in a script.
 
 <p align="center">
-  <img src="../../assets/tui.gif" alt="hs tui driving Android from the terminal" width="720">
+  <a href="/assets/tui.gif?v=20260525">
+    <img src="/assets/tui.gif?v=20260525" alt="hs tui driving Android from the terminal" width="720" style="background:#111;border-radius:8px">
+  </a>
 </p>
 
 It is not a remote desktop. It is not a recorder. It is a live, keyboard-driven inspector for Android's interactive UI.
