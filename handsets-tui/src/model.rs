@@ -16,7 +16,8 @@ pub struct Element {
     pub rid_short: String,      // "email"
     pub cx:        i32,         // bounds-centre x
     pub cy:        i32,         // bounds-centre y
-    pub text:      String,      // raw text (for EditText prefill)
+    pub text:      String,      // raw text (for EditText prefill, click discriminator)
+    pub desc:      String,      // raw content-description (click discriminator fallback)
     pub flags:     String,      // single-letter codes from the daemon
 }
 
@@ -107,8 +108,10 @@ fn build(node: &Value) -> Element {
     let cls_short = cls_full.rsplit('.').next().unwrap_or(cls_full).to_string();
     let rid_full  = json::get_str(node, "rid").unwrap_or("").to_string();
     let rid_short = rid_full.rsplit('/').next().unwrap_or(&rid_full).to_string();
-    let text  = json::get_str(node, "text").unwrap_or("").to_string();
-    let desc  = json::get_str(node, "desc").unwrap_or("").to_string();
+    let text_raw  = json::get_str(node, "text").unwrap_or("").to_string();
+    let desc_raw  = json::get_str(node, "desc").unwrap_or("").to_string();
+    let text  = strip_invisible(&text_raw);
+    let desc  = strip_invisible(&desc_raw);
     let flags = json::get_str(node, "flags").unwrap_or("").to_string();
 
     let (cx, cy) = match json::bounds(node) {
@@ -116,8 +119,8 @@ fn build(node: &Value) -> Element {
         None => (-1, -1),
     };
 
-    let label = if !text.is_empty()       { strip_invisible(&text) }
-                else if !desc.is_empty()  { strip_invisible(&desc) }
+    let label = if !text.is_empty()       { text.clone() }
+                else if !desc.is_empty()  { desc.clone() }
                 else if !rid_short.is_empty() { format!("#{rid_short}") }
                 else                      { String::new() };
 
@@ -125,7 +128,7 @@ fn build(node: &Value) -> Element {
                else if flags.contains('c')        { Verb::Tap }
                else                               { Verb::Info };
 
-    Element { verb, cls_short, label, rid_full, rid_short, cx, cy, text, flags }
+    Element { verb, cls_short, label, rid_full, rid_short, cx, cy, text, desc, flags }
 }
 
 fn is_input_widget(simple: &str) -> bool {

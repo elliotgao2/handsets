@@ -223,8 +223,16 @@ impl App {
         // node_click via AccessibilityAction.ACTION_CLICK when we have an rid
         // (faster, more reliable). Otherwise coordinate-tap — same trick `hs
         // tap "label"` uses; non-clickable TextViews bubble to clickable parents.
+        //
+        // The selector composes `id=…` with a `text=…` or `desc=…`
+        // discriminator. Many UI scaffolds share one resource-id across
+        // siblings — every launcher icon is `:id/icon`, every list row is
+        // `:id/title`, etc. — and the daemon's BFS would otherwise return
+        // the DFS-first sibling (Calendar, on the launcher), not the row
+        // the user actually highlighted. See handsets-cli tap_text.rs for
+        // the same fix on the `hs tap` path.
         let cmd = if el.is_tap() && !el.rid_full.is_empty() {
-            format!("node_click id={}", el.rid_full)
+            format!("node_click {}", build_click_selector(&el))
         } else {
             format!("tap x={} y={}", el.cx, el.cy)
         };
@@ -314,6 +322,20 @@ fn run_watcher(host: String, port: u16, tx: Sender<WatcherMsg>) {
     }
 }
 
+/// Build the daemon selector for `node_click` against an element. Adds the
+/// matched text or content-description as a discriminator so we land on
+/// *this* node rather than any sibling sharing the same resource-id (the
+/// launcher-icon collision: every icon is `:id/icon`, BFS picks Calendar).
+fn build_click_selector(el: &Element) -> String {
+    let mut s = format!("id={}", el.rid_full);
+    if !el.text.is_empty() {
+        s.push_str(&format!(" text={:?}", el.text));
+    } else if !el.desc.is_empty() {
+        s.push_str(&format!(" desc={:?}", el.desc));
+    }
+    s
+}
+
 /// Cheap content hash of the element list — used to detect "the dump changed"
 /// without comparing every field.
 fn elements_fingerprint(elements: &[Element]) -> u64 {
@@ -375,9 +397,34 @@ mod tests {
             rid_full: rid.into(),
             rid_short,
             cx, cy,
-            text: String::new(),
+            text: label.into(),
+            desc: String::new(),
             flags: "ce".into(),
         }
+    }
+
+    #[test]
+    fn click_selector_includes_text_discriminator() {
+        let e = stub_el("tap", "闲鱼", "com.android.launcher:id/icon", 884, 2826);
+        assert_eq!(build_click_selector(&e),
+            r#"id=com.android.launcher:id/icon text="闲鱼""#);
+    }
+
+    #[test]
+    fn click_selector_falls_back_to_desc_when_no_text() {
+        let e = Element {
+            verb: model::Verb::Tap,
+            cls_short: "ImageButton".into(),
+            label: "Back".into(),
+            rid_full: "com.foo:id/btn".into(),
+            rid_short: "btn".into(),
+            cx: 100, cy: 100,
+            text: String::new(),
+            desc: "Back".into(),
+            flags: "ce".into(),
+        };
+        assert_eq!(build_click_selector(&e),
+            r#"id=com.foo:id/btn desc="Back""#);
     }
 
     #[test]
