@@ -192,6 +192,7 @@ Long mobile trajectories repeat screen observations many times. Reducing each ob
 
 ## Related guides
 
+- [A Terminal UI for Driving Android Apps](2026-05-25-android-terminal-ui.md)
 - [Stop Wasting Tokens on Android Automation](2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [An Android UI Dump for LLMs](2026-05-22-android-ui-dump-for-llms.md)
 - [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)

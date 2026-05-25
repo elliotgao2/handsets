@@ -182,6 +182,7 @@ You can tap normal accessible Android UI. Apps with custom rendering or inaccess
 
 ## Related guides
 
+- [A Terminal UI for Driving Android Apps](2026-05-25-android-terminal-ui.md)
 - [Fast Android UI Automation with ADB](2026-05-25-fast-android-ui-automation-with-adb.md)
 - [How to Automate Android Without Appium](2026-05-24-how-to-automate-android-without-appium.md)
 - [Python Android Automation Without Root](2026-05-24-python-android-automation-without-root.md)

@@ -19,6 +19,7 @@ These posts answer one real search query at a time. Start here if you want to dr
 
 These posts target the searches people make when Appium, uiautomator2, or raw ADB feels too heavy or too slow.
 
+- [A Terminal UI for Driving Android Apps](posts/2026-05-25-android-terminal-ui.md)
 - [Handsets vs Appium](posts/2026-05-24-handsets-vs-appium.md)
 - [Best Appium Alternative for Android Automation](posts/2026-05-24-best-appium-alternative-for-android-automation.md)
 - [How to Automate Android Without Appium](posts/2026-05-24-how-to-automate-android-without-appium.md)

@@ -174,6 +174,7 @@ For full cross-platform QA infrastructure, Appium is better. For Android-only CL
 
 ## Related guides
 
+- [A Terminal UI for Driving Android Apps](2026-05-25-android-terminal-ui.md)
 - [How to Automate Android Without Appium](2026-05-24-how-to-automate-android-without-appium.md)
 - [How to Tap Android Buttons by Text from the Command Line](2026-05-25-tap-android-buttons-by-text-command-line.md)
 - [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)
