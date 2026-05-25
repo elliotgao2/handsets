@@ -105,7 +105,13 @@ fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
     let id_full   = selector::get_str(node, "rid").unwrap_or("");
     let id_short  = id_full.rsplit('/').next().unwrap_or(id_full);
 
-    if is_interactive(node) {
+    // Skip nodes that aren't actually on-screen. Off-screen / negative
+    // bounds usually mean the view has been scrolled out, recycled, or
+    // never laid out — its centroid is unreachable (the daemon rejects
+    // off-screen taps with OFF_SCREEN) so listing it is just noise. We
+    // still walk children: a parent with degenerate bounds can wrap a
+    // child whose own bounds are valid.
+    if is_interactive(node) && has_visible_bounds(node) {
         let coords = match selector::bounds(node) {
             Some((x1, y1, x2, y2)) => format!("{},{}", (x1+x2)/2, (y1+y2)/2),
             None => "?,?".to_string(),
@@ -177,6 +183,17 @@ fn collect_interactive(node: &Value, rows: &mut Vec<Row>) {
 
     if let Some(kids) = selector::children(node) {
         for c in kids { collect_interactive(c, rows); }
+    }
+}
+
+/// Drop nodes whose bounds put them off-screen (any negative coordinate)
+/// or collapsed to a zero-area rectangle. `is_interactive` already filters
+/// on text/desc/widget-class; this is the second-half check that the row
+/// the user sees is actually somewhere the screen can be tapped.
+fn has_visible_bounds(node: &Value) -> bool {
+    match selector::bounds(node) {
+        Some((x1, y1, x2, y2)) => x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1,
+        None => false,
     }
 }
 
@@ -416,6 +433,31 @@ mod tests {
         assert!(lines[0].contains("#back_btn"), "got: {}", lines[0]);
         // `#back_btn` should appear exactly once — no duplicate id column.
         assert_eq!(lines[0].matches("#back_btn").count(), 1, "got: {}", lines[0]);
+    }
+
+    /// Off-screen rows (negative bounds, zero-area, scrolled-out recycler
+    /// cells) used to show up alongside the visible ones, with coords like
+    /// "-540,-200" that no tap could ever reach. Regression: those nodes
+    /// are now dropped before they hit the render.
+    #[test]
+    fn drops_offscreen_and_zero_area_nodes() {
+        let dump = json::parse(r#"{
+            "root": {
+                "cls": "android.widget.FrameLayout",
+                "bounds": [0, 0, 1080, 2400],
+                "children": [
+                    {"cls":"android.widget.Button","rid":"com.foo:id/ok","text":"OK","flags":"ce","bounds":[100,200,300,400],"children":[]},
+                    {"cls":"android.widget.Button","rid":"com.foo:id/scrolled","text":"Off the top","flags":"ce","bounds":[100,-300,300,-100],"children":[]},
+                    {"cls":"android.widget.Button","rid":"com.foo:id/zero","text":"Zero size","flags":"ce","bounds":[0,0,0,0],"children":[]}
+                ]
+            }
+        }"#).unwrap();
+        let out = render_interactive(&dump);
+        let lines: Vec<&str> = out.trim_end().lines().collect();
+        assert_eq!(lines.len(), 1, "only the OK button has visible bounds, got:\n{out}");
+        assert!(lines[0].contains("\"OK\""));
+        assert!(!out.contains("Off the top"));
+        assert!(!out.contains("Zero size"));
     }
 
     /// Visual inspection helper — run with `cargo test ui_dump::tests::shows_canonical_render -- --nocapture`

@@ -74,11 +74,22 @@ fn collect_roots(v: &Value) -> Vec<&Value> {
 }
 
 fn walk(node: &Value, out: &mut Vec<Element>) {
-    if is_interactive(node) {
+    // Off-screen / negative-bounds nodes get skipped — they're noise in the
+    // list (can't be tapped; the daemon rejects off-screen taps anyway) and
+    // would confuse the cursor on recycled views. Still descend into
+    // children: a recycler with degenerate own-bounds can wrap valid rows.
+    if is_interactive(node) && has_visible_bounds(node) {
         out.push(build(node));
     }
     if let Some(kids) = json::children(node) {
         for c in kids { walk(c, out); }
+    }
+}
+
+fn has_visible_bounds(node: &Value) -> bool {
+    match json::bounds(node) {
+        Some((x1, y1, x2, y2)) => x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1,
+        None => false,
     }
 }
 
@@ -181,6 +192,24 @@ mod tests {
         assert!(els[1].is_password());
         assert_eq!(els[2].verb, Verb::Tap);
         assert_eq!(els[2].label, "Continue");
+    }
+
+    #[test]
+    fn drops_offscreen_and_zero_area_nodes() {
+        let v = json::parse(r#"{
+            "root": {
+                "cls": "android.widget.FrameLayout",
+                "bounds": [0, 0, 1080, 2400],
+                "children": [
+                    {"cls":"android.widget.Button","rid":"com.foo:id/ok","text":"OK","flags":"ce","bounds":[100,200,300,400],"children":[]},
+                    {"cls":"android.widget.Button","rid":"com.foo:id/scrolled","text":"Off","flags":"ce","bounds":[100,-300,300,-100],"children":[]},
+                    {"cls":"android.widget.Button","rid":"com.foo:id/zero","text":"Zero","flags":"ce","bounds":[0,0,0,0],"children":[]}
+                ]
+            }
+        }"#).unwrap();
+        let els = parse_dump(&v);
+        assert_eq!(els.len(), 1);
+        assert_eq!(els[0].label, "OK");
     }
 
     #[test]
