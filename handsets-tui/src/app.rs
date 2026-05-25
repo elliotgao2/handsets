@@ -248,15 +248,25 @@ impl App {
 
         // Wire grammar matches handsets-cli main.rs:1241 ("node_set_text {sel}
         // value={text:?}"). `{:?}` quotes + escapes the value the way the
-        // daemon's extractKey parser expects.
-        if !target_rid.is_empty() {
-            let cmd = format!("node_set_text id={target_rid} value={buffer:?}");
-            self.dispatch(&cmd, &format!("filled \"{target_label}\""))?;
+        // daemon's extractKey parser expects. ACTION_SET_TEXT is Unicode-
+        // aware — CJK / emoji / etc. round-trip through the CharSequence
+        // Bundle without touching the synthetic keymap — and it replaces
+        // the field's contents wholesale, so we get "clear + set" atomically.
+        //
+        // No-rid path: tap to focus, then `node_set_text value="..."` with
+        // an empty selector — the daemon routes that to whichever EditText
+        // currently has input focus. Same ACTION_SET_TEXT semantics as the
+        // rid path. (The previous fallback used the synthetic-keystroke
+        // `text` wire, which threw IllegalArgumentException on any non-
+        // QWERTY character; the one before that used clipboard+paste,
+        // which appended at the cursor instead of replacing.)
+        let cmd = if !target_rid.is_empty() {
+            format!("node_set_text id={target_rid} value={buffer:?}")
         } else {
-            // No resource-id — tap into the field first, then push raw text.
             let _ = self.main_conn.call_str(&format!("tap x={target_cx} y={target_cy}"));
-            self.dispatch(&format!("text {buffer}"), &format!("typed into \"{target_label}\""))?;
-        }
+            format!("node_set_text value={buffer:?}")
+        };
+        self.dispatch(&cmd, &format!("filled \"{target_label}\""))?;
         self.mode = Mode::Browse;
         Ok(())
     }

@@ -45,6 +45,19 @@ final class NodeActions {
         Bundle args = new Bundle();
         args.putCharSequence(
                 AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+        // Empty selector → operate on whichever EditText currently has input
+        // focus. Mirrors `paste` / `submit` so callers like hs tui can update
+        // a tapped-to-focus field that has no resource-id without inventing
+        // a brittle selector. ACTION_SET_TEXT replaces the field's contents
+        // wholesale, so this also covers the "clear before update" case.
+        if (selectorStr == null || selectorStr.isEmpty()) {
+            AccessibilityNodeInfo target = findInputFocus();
+            if (target == null) return err("no-focused-input");
+            boolean ok;
+            try { ok = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args); }
+            catch (Throwable t) { return err("set_text-threw:" + t.getMessage()); }
+            return ok ? ok("ok set_text") : err("set_text-rejected");
+        }
         return perform(selectorStr, AccessibilityNodeInfo.ACTION_SET_TEXT, args, "set_text");
     }
 

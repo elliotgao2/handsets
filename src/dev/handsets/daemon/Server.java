@@ -939,9 +939,12 @@ public final class Server {
         // Pull value= out, treat the rest as the selector.
         String value = extractKey(tail, "value");
         if (value == null) return errBytes("node_set_text-needs-value=");
-        String sel = removeKey(tail, "value");
-        if (sel.isEmpty()) return errBytes("node_set_text-needs-selector");
-        return h.nodes.setText(sel, value);
+        // Empty selector is intentional: NodeActions.setText handles it by
+        // targeting whichever EditText currently has input focus. Kept
+        // explicit here so callers don't need a sentinel value — they just
+        // omit the selector and `node_set_text value="..."` writes to the
+        // focused field, which is what hs tui needs after a tap-to-focus.
+        return h.nodes.setText(removeKey(tail, "value").trim(), value);
     }
 
     private byte[] runNodeScroll(String cmd) {
