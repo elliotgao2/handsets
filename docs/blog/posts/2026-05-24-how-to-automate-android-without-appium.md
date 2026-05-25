@@ -1,7 +1,7 @@
 ---
 date: 2026-05-24
 slug: how-to-automate-android-without-appium
-description: "Automate Android without Appium using a lightweight CLI: tap by text, fill fields, wait for screens, and run no-root scripts from your terminal."
+description: "How to automate Android without Appium: use a lightweight CLI to tap by text, fill fields, wait for screens, and run no-root scripts."
 categories:
   - Android automation
   - Appium
@@ -19,6 +19,19 @@ For those jobs, a CLI can be enough.
 Handsets lets you automate Android from the terminal without root and without installing a visible helper app on the phone.
 
 <!-- more -->
+
+## Quick answer
+
+The fastest way to automate Android without Appium is:
+
+```bash
+hs use
+hs tap "Continue"
+hs fill "Email" "you@example.com"
+hs wait "Dashboard"
+```
+
+That gives you the core automation loop: connect to the device, act on visible UI labels, and wait for the next state. You still use normal Android debugging access. You do not need root, WebDriver, or an Appium server.
 
 ## What you need
 
@@ -64,6 +77,8 @@ Use `--visible` and `--unique` when a script should fail rather than guess:
 ```bash
 hs tap "Continue" --visible --unique --timeout 5s
 ```
+
+This is the main difference from raw `adb shell input tap`. The script says what it means. It does not encode where a button happened to be on one device.
 
 ## Fill fields
 
@@ -132,6 +147,27 @@ trap 'hs ui > "$ARTIFACTS/ui.txt"; hs see --size 768 "$ARTIFACTS/screen.jpg"; hs
 
 Now the script leaves behind the UI, screenshot, and logs when something breaks.
 
+## Can I just use adb?
+
+Sometimes, yes.
+
+Raw `adb` is great for low-level device commands:
+
+```bash
+adb shell am start -n com.example/.MainActivity
+adb shell input keyevent BACK
+adb shell wm size
+```
+
+It becomes awkward when you need semantic UI automation:
+
+- Tap the button labeled "Continue".
+- Fill the password field below "Password".
+- Wait until "Dashboard" appears.
+- Fail if there are two matching buttons.
+
+That is where a higher-level tool helps. Handsets still uses `adb` underneath, but it gives you label-based actions and structured failure modes.
+
 ## When Appium is still better
 
 Use Appium if you need:
@@ -181,6 +217,24 @@ hs wait "Welcome"
 ```
 
 That covers more Android automation work than you might expect.
+
+## FAQ
+
+### Do I need Appium to automate Android?
+
+No. Appium is useful for full mobile test frameworks, especially cross-platform suites, but Android can also be automated from the command line with `adb` and tools like Handsets.
+
+### Can I automate Android without root?
+
+Yes. For normal UI automation, root is not required. You can tap, type, swipe, inspect visible UI, wait for text, and capture screenshots when the current app allows it.
+
+### Is this better than Appium?
+
+It depends. Handsets is better for Android-only CLI scripts, LLM agents, and fast tap-heavy flows. Appium is better for cross-platform QA infrastructure and WebDriver-based test suites.
+
+### Can I run this in CI?
+
+Yes, as long as your CI runner can access an Android emulator or connected device with `adb`. The commands are shell-friendly and return normal exit codes.
 
 ## Related guides
 
