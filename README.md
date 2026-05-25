@@ -24,14 +24,6 @@ $ hs wait "Welcome"                   # block on success text
 ```
 
 `ui → label → tap → wait`. Pipe `hs ui` into a model, take the label, hand it back.
-For interactive exploration from the keyboard, `hs tui` opens the same element list
-in a terminal UI: arrow keys to move, Enter to tap or fill, PgDn/PgUp to swipe,
-and a background watcher stream-renders the live device state at ~10 fps.
-
-<p align="center">
-  <img src="tui.gif" alt="hs tui — keyboard-driven Android inspector" width="600">
-</p>
-
 Raw `screenshot` defaults to 768px-long-edge JPEG, the fast agent path;
 `hs see out.jpg` saves a native-resolution export unless you pass `--size 768`.
 Use WebP for compact lossy exports and PNG only for debug/lossless files.
@@ -45,6 +37,34 @@ Use WebP for compact lossy exports and PNG only for debug/lossless files.
 | Driven from | **any language via subprocess** | shell / subprocess | Python only | multi-lang via WebDriver |
 
 Reproduce with `hs bench -n 50`; methodology in [docs/benchmark.md](docs/benchmark.md). uiautomator2 and Appium ship things Handsets doesn't — recorders, pytest plugins, HTML reports, iOS support. Handsets is the lean CLI for tap-heavy work where per-call cost matters.
+
+## `hs tui` — drive any Android app from your keyboard
+
+<p align="center">
+  <img src="tui.gif" alt="hs tui — keyboard-driven Android inspector" width="720">
+</p>
+
+A live, video-stream terminal UI of the device's interactive elements. A
+background watcher polls the accessibility tree at ~10 fps, so the list on
+screen *is* the live state of the device — no manual refresh, no waiting for
+idle, no race between tap and re-dump.
+
+- **One screen for the whole flow.** `↑↓` / `jk` to move, **Enter** to tap a
+  Button or open an input modal for an EditText, **PgDn/PgUp** or **Shift+J/K**
+  to swipe, **←** / **Esc** for BACK, **q** to quit. No more copy-paste between
+  `hs ui` and `hs tap "…"`.
+- **What you see is what you'd script.** Rows render the same verb-led table
+  as `hs ui -i` — `fill EditText "Email" #email`, `tap Button "Continue"
+  #continue` — so once the flow works in `tui`, you already know the
+  selectors for `hs run` automation.
+- **Fast.** Actions are fire-and-forget over a dedicated socket; the watcher
+  picks up the new screen on its next 100ms tick. Mash keys without waiting.
+- **Works on animated pages.** No `wait_for_idle` blocking — even constantly
+  animating screens render smoothly at 10–20 fps.
+
+Open it with `hs tui` after `hs use`. Built as a sibling crate
+(`handsets-tui`, [ratatui](https://ratatui.rs) + crossterm) so the core `hs`
+binary stays zero-dep.
 
 ## Selectors
 
