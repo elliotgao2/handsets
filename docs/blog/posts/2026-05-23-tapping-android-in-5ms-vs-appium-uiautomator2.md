@@ -194,6 +194,7 @@ I'd love to hear what your bench shows.
 
 ## Related guides
 
+- [Fast Android UI Automation with ADB](2026-05-25-fast-android-ui-automation-with-adb.md)
 - [Handsets vs Appium](2026-05-24-handsets-vs-appium.md)
 - [uiautomator2 Alternative for Android Automation](2026-05-24-uiautomator2-alternative-for-android-automation.md)
 - [Stop Wasting Tokens on Android Automation](2026-05-24-stop-wasting-tokens-on-android-automation.md)

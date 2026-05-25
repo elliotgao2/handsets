@@ -239,6 +239,7 @@ You can still interact with visible UI, but Android may block screenshots for wi
 
 ## Related guides
 
+- [How to Tap Android Buttons by Text from the Command Line](2026-05-25-tap-android-buttons-by-text-command-line.md)
 - [How to Control Android from a Computer Without Root](2026-05-24-how-to-control-android-phone-without-root.md)
 - [How to Automate Android Without Appium](2026-05-24-how-to-automate-android-without-appium.md)
 - [uiautomator2 Alternative for Android Automation](2026-05-24-uiautomator2-alternative-for-android-automation.md)

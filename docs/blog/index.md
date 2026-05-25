@@ -23,11 +23,14 @@ These posts target the searches people make when Appium, uiautomator2, or raw AD
 - [Best Appium Alternative for Android Automation](posts/2026-05-24-best-appium-alternative-for-android-automation.md)
 - [How to Automate Android Without Appium](posts/2026-05-24-how-to-automate-android-without-appium.md)
 - [uiautomator2 Alternative for Android Automation](posts/2026-05-24-uiautomator2-alternative-for-android-automation.md)
+- [Fast Android UI Automation with ADB](posts/2026-05-25-fast-android-ui-automation-with-adb.md)
+- [How to Tap Android Buttons by Text from the Command Line](posts/2026-05-25-tap-android-buttons-by-text-command-line.md)
 
 ## Performance And Agent Internals
 
 These posts explain why Handsets is fast enough for tight automation loops and LLM agents.
 
+- [Android Automation for LLM Agents](posts/2026-05-25-android-automation-for-llm-agents.md)
 - [Stop Wasting Tokens on Android Automation](posts/2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [Tapping Android in 5 ms](posts/2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)
 - [An Android UI Dump for LLMs](posts/2026-05-22-android-ui-dump-for-llms.md)

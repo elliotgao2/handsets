@@ -190,6 +190,7 @@ The model does not need to know that these nodes live inside three nested `Frame
 
 ## Related guides
 
+- [Android Automation for LLM Agents](2026-05-25-android-automation-for-llm-agents.md)
 - [uiautomator2 Alternative for Android Automation](2026-05-24-uiautomator2-alternative-for-android-automation.md)
 - [An Android UI Dump for LLMs](2026-05-22-android-ui-dump-for-llms.md)
 - [Tapping Android in 5 ms](2026-05-23-tapping-android-in-5ms-vs-appium-uiautomator2.md)

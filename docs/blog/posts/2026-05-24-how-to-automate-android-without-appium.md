@@ -238,6 +238,8 @@ Yes, as long as your CI runner can access an Android emulator or connected devic
 
 ## Related guides
 
+- [Fast Android UI Automation with ADB](2026-05-25-fast-android-ui-automation-with-adb.md)
+- [How to Tap Android Buttons by Text from the Command Line](2026-05-25-tap-android-buttons-by-text-command-line.md)
 - [Handsets vs Appium](2026-05-24-handsets-vs-appium.md)
 - [Best Appium Alternative for Android Automation](2026-05-24-best-appium-alternative-for-android-automation.md)
 - [How to Automate Android Apps Without Root](2026-05-24-how-to-automate-android-apps-without-root.md)
