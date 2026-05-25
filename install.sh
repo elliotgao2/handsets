@@ -80,13 +80,14 @@ fi
 mkdir -p "$DIR"
 # Preserve any user state files in $DIR (state-<port>.json etc.); only
 # remove the binaries we're about to overwrite.
-for f in hs handsets-viewer hs.jar LICENSE VERSION; do
+for f in hs handsets-viewer handsets-tui hs.jar LICENSE VERSION; do
   rm -f "$DIR/$f"
 done
 tar -xzf "$TMP/$ASSET" -C "$DIR" --strip-components=1
 printf '%s\n' "$VERSION" > "$DIR/VERSION"
 chmod +x "$DIR/hs" 2>/dev/null || true
 [ -f "$DIR/handsets-viewer" ] && chmod +x "$DIR/handsets-viewer" 2>/dev/null || true
+[ -f "$DIR/handsets-tui" ]    && chmod +x "$DIR/handsets-tui"    2>/dev/null || true
 
 # ---------- link into PATH ----------
 
@@ -122,6 +123,7 @@ fi
 say ""
 say "  installed:  $DIR/hs"
 [ -f "$DIR/handsets-viewer" ] && say "  viewer:     $DIR/handsets-viewer"
+[ -f "$DIR/handsets-tui" ]    && say "  tui:        $DIR/handsets-tui"
 say "  daemon jar: $DIR/hs.jar"
 
 if [ -n "$LINKED" ]; then

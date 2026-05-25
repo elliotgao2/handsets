@@ -77,6 +77,7 @@ jobs:
           workspaces: |
             handsets-cli
             handsets-viewer
+            handsets-tui
 
       - name: Install aarch64 cross linker (Linux only)
         if: matrix.cross
@@ -93,6 +94,10 @@ jobs:
         if: matrix.viewer
         shell: bash
         run: cargo build --release --manifest-path handsets-viewer/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Build handsets-tui
+        shell: bash
+        run: cargo build --release --manifest-path handsets-tui/Cargo.toml --target ${{ matrix.target }}
 
       - name: Download jar artifact
         uses: actions/download-artifact@v4
@@ -120,6 +125,7 @@ jobs:
           if [[ "${{ matrix.viewer }}" == "true" ]]; then
             cp "handsets-viewer/target/${{ matrix.target }}/release/handsets-viewer${{ matrix.exe }}" "$stage/"
           fi
+          cp "handsets-tui/target/${{ matrix.target }}/release/handsets-tui${{ matrix.exe }}" "$stage/"
           cp build/hs.jar "$stage/hs.jar"
           [[ -f LICENSE ]] && cp LICENSE "$stage/" || true
           cp README.md "$stage/"
