@@ -2,186 +2,214 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://handsets.dev/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/architecture/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/benchmark/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/cookbook/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/sharp-edges/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/wire/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/android-ui-dump-for-llms/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/why-adb-screencap-is-slow/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/tapping-android-in-5ms-vs-appium-uiautomator2/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/best-appium-alternative-for-android-automation/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/handsets-vs-appium/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-automate-android-apps-without-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-automate-android-without-appium/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-control-android-phone-without-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-install-apks-on-android-without-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-manage-multiple-android-phones-without-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-run-mobile-qa-tests-without-rooted-phones/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-take-screenshots-on-android-without-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/how-to-test-android-apps-without-rooted-devices/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/python-android-automation-without-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/stop-wasting-tokens-on-android-automation/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/uiautomator2-alternative-for-android-automation/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/android-automation-for-llm-agents/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/android-terminal-ui/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/fast-android-ui-automation-with-adb/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/tap-android-buttons-by-text-command-line/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/android-device-cloud-for-llm-agents/</loc>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/debug-llm-android-automation-runs/</loc>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/mobile-rpa-android-without-root/</loc>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/llm-agents/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/android-automation/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/category/device-cloud/</loc>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/category/debugging/</loc>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/category/rpa/</loc>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/no-root/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/terminal/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/rust/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/adb/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/performance/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/appium/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/comparisons/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/device-farms/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/qa/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/screenshots/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/testing/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/python/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/uiautomator2/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/design/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/page/2/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
+    </url>
+    <url>
+         <loc>https://handsets.dev/blog/page/3/</loc>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/android-automation/page/2/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
     <url>
          <loc>https://handsets.dev/blog/category/no-root/page/2/</loc>
-         <lastmod>2026-05-25</lastmod>
+         <lastmod>2026-05-26</lastmod>
     </url>
 </urlset>

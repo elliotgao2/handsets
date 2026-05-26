@@ -6,15 +6,15 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Why adb screencap can take seconds per Android screenshot, and how Handsets captures agent-sized screenshots much faster.">
+        <meta name="description" content="What an Android device cloud for LLM agents needs: fast UI actions, compact observations, screenshots, logs, session isolation, and replayable runs.">
       
       
       
-        <link rel="canonical" href="https://handsets.dev/blog/why-adb-screencap-is-slow/">
+        <link rel="canonical" href="https://handsets.dev/blog/android-device-cloud-for-llm-agents/">
       
       
+        <link rel="prev" href="../debug-llm-android-automation-runs/">
       
-        <link rel="next" href="../android-ui-dump-for-llms/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>Why adb screencap is slow - Handsets</title>
+        <title>Android Device Cloud for LLM Agents - Handsets</title>
       
     
     
@@ -64,25 +64,25 @@
   
   
   <meta property="og:type" content="article">
-  <meta property="og:title" content="Why adb screencap is slow - Handsets">
-  <meta property="og:description" content="Why adb screencap can take seconds per Android screenshot, and how Handsets captures agent-sized screenshots much faster.">
-  <meta property="og:url" content="https://handsets.dev/blog/why-adb-screencap-is-slow/">
+  <meta property="og:title" content="Android Device Cloud for LLM Agents - Handsets">
+  <meta property="og:description" content="What an Android device cloud for LLM agents needs: fast UI actions, compact observations, screenshots, logs, session isolation, and replayable runs.">
+  <meta property="og:url" content="https://handsets.dev/blog/android-device-cloud-for-llm-agents/">
   <meta property="og:site_name" content="Handsets">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Why adb screencap is slow - Handsets">
-  <meta name="twitter:description" content="Why adb screencap can take seconds per Android screenshot, and how Handsets captures agent-sized screenshots much faster.">
+  <meta name="twitter:title" content="Android Device Cloud for LLM Agents - Handsets">
+  <meta name="twitter:description" content="What an Android device cloud for LLM agents needs: fast UI actions, compact observations, screenshots, logs, session isolation, and replayable runs.">
   
-  <meta property="article:published_time" content="2026-05-22">
+  <meta property="article:published_time" content="2026-05-26">
   
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Why adb screencap is slow",
-    "description": "Why adb screencap can take seconds per Android screenshot, and how Handsets captures agent-sized screenshots much faster.",
-    "url": "https://handsets.dev/blog/why-adb-screencap-is-slow/",
+    "headline": "Android Device Cloud for LLM Agents",
+    "description": "What an Android device cloud for LLM agents needs: fast UI actions, compact observations, screenshots, logs, session isolation, and replayable runs.",
+    "url": "https://handsets.dev/blog/android-device-cloud-for-llm-agents/",
     
-    "datePublished": "2026-05-22",
+    "datePublished": "2026-05-26",
     
     "publisher": {
       "@type": "Organization",
@@ -111,7 +111,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#why-adb-screencap-is-slow" class="md-skip">
+        <a href="#android-device-cloud-for-llm-agents" class="md-skip">
           Skip to content
         </a>
       
@@ -145,7 +145,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Why adb screencap is slow
+              Android Device Cloud for LLM Agents
             
           </span>
         </div>
@@ -1382,10 +1382,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-numbers" class="md-nav__link">
+  <a href="#quick-answer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The numbers
+        Quick answer
       
     </span>
   </a>
@@ -1393,10 +1393,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-does-adb-screencap-p-spend-its-time" class="md-nav__link">
+  <a href="#why-mobile-agents-need-different-infrastructure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Where does adb screencap -p spend its time?
+        Why mobile agents need different infrastructure
       
     </span>
   </a>
@@ -1404,10 +1404,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-reasons-its-slow" class="md-nav__link">
+  <a href="#observation-compact-first-visual-second" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three reasons it's slow
+        Observation: compact first, visual second
       
     </span>
   </a>
@@ -1415,22 +1415,66 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-handsets-does-differently" class="md-nav__link">
+  <a href="#action-labels-beat-pixels" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Handsets does differently
+        Action: labels beat pixels
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What Handsets does differently">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-is-the-product" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging is the product
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#isolation-matters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Isolation matters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-handsets-fits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where Handsets fits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#faq" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FAQ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FAQ">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-a-warm-virtualdisplay-mirror-in-a-long-running-daemon" class="md-nav__link">
+  <a href="#is-an-android-device-cloud-the-same-as-appium-cloud-testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. A warm VirtualDisplay mirror in a long-running daemon
+        Is an Android device cloud the same as Appium cloud testing?
       
     </span>
   </a>
@@ -1438,10 +1482,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-jpeg-is-the-default-png-is-opt-in" class="md-nav__link">
+  <a href="#do-llm-agents-need-real-android-devices" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. JPEG is the default; PNG is opt-in
+        Do LLM agents need real Android devices?
       
     </span>
   </a>
@@ -1449,10 +1493,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-default-to-768-long-edge-for-the-agent-loop" class="md-nav__link">
+  <a href="#why-not-just-use-screenshots" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Default to 768-long-edge for the agent loop
+        Why not just use screenshots?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-this-require-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does this require root?
       
     </span>
   </a>
@@ -1461,50 +1516,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#layer-by-layer-wins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Layer-by-layer wins
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#when-this-matters-and-when-it-doesnt" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        When this matters (and when it doesn't)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#caveats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Caveats
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reproducing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reproducing
-      
-    </span>
-  </a>
   
 </li>
       
@@ -1556,7 +1567,7 @@
                     <li class="md-nav__item">
                       <div class="md-nav__link">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
-                        <time datetime="2026-05-22 00:00:00+00:00" class="md-ellipsis">May 22, 2026</time>
+                        <time datetime="2026-05-26 00:00:00+00:00" class="md-ellipsis">May 26, 2026</time>
                       </div>
                     </li>
                     
@@ -1567,7 +1578,9 @@
                           <span class="md-ellipsis">
                             in
                             
-                              <a href="../category/performance/">Performance</a></span>
+                              <a href="../category/llm-agents/">LLM agents</a>, 
+                              <a href="../category/android-automation/">Android automation</a>, 
+                              <a href="../category/device-cloud/">Device cloud</a></span>
                         </div>
                       </li>
                     
@@ -1578,7 +1591,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              7 min read
+                              4 min read
                             
                           </span>
                         </div>
@@ -1605,295 +1618,153 @@
   
 
 
-<h1 id="why-adb-screencap-is-slow">Why <code>adb screencap</code> is slow<a class="headerlink" href="#why-adb-screencap-is-slow" title="Permanent link">&para;</a></h1>
-<p><code>adb shell screencap -p</code> is the default way to grab an Android screen from
-a host machine. On a stock Android 15 emulator at 1440×3120, it takes a
-median of <strong>2.12 seconds</strong> per call — with individual calls ranging from
-660 ms to over 3 seconds.</p>
-<p>That's fine for a debugging screenshot. It's a disaster if you're a UI
-automation loop or an LLM agent that takes a screenshot between every
-step.</p>
-<p>The same screen, captured through <code>hs see</code> at the default settings, takes
-<strong>12 ms</strong> — about 170× faster. But "170× faster" is a fragile claim if
-the comparison isn't honest. Here's where the time actually goes, and
-what Handsets does about it.</p>
-<hr />
-<h2 id="the-numbers">The numbers<a class="headerlink" href="#the-numbers" title="Permanent link">&para;</a></h2>
-<p>All measurements: Android 15 emulator (<code>sdk_gphone64_arm64</code>, 1440×3120,
-SDK 35). Each variant warmed (3 calls) then sampled 20 times. Wall-clock
-end-to-end from the host's perspective.</p>
-<table>
-<thead>
-<tr>
-<th>variant</th>
-<th style="text-align: right;">median</th>
-<th style="text-align: right;">p10</th>
-<th style="text-align: right;">p90</th>
-<th style="text-align: right;">output</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>adb exec-out screencap -p &gt; x.png</code></td>
-<td style="text-align: right;">2122 ms</td>
-<td style="text-align: right;">661</td>
-<td style="text-align: right;">3007</td>
-<td style="text-align: right;">1973 KB</td>
-</tr>
-<tr>
-<td><code>adb exec-out screencap &gt; x.raw</code></td>
-<td style="text-align: right;">675 ms</td>
-<td style="text-align: right;">664</td>
-<td style="text-align: right;">683</td>
-<td style="text-align: right;">17.5 MB</td>
-</tr>
-<tr>
-<td><code>hs see x.png</code>         (PNG, full res)</td>
-<td style="text-align: right;">584 ms</td>
-<td style="text-align: right;">569</td>
-<td style="text-align: right;">594</td>
-<td style="text-align: right;">1978 KB</td>
-</tr>
-<tr>
-<td><code>hs see x.jpg</code>         (JPEG q80, full)</td>
-<td style="text-align: right;">24 ms</td>
-<td style="text-align: right;">23</td>
-<td style="text-align: right;">25</td>
-<td style="text-align: right;">138 KB</td>
-</tr>
-<tr>
-<td><code>hs do 'screenshot'</code>   (JPEG q80, 768 long)</td>
-<td style="text-align: right;"><strong>12 ms</strong></td>
-<td style="text-align: right;"><strong>11</strong></td>
-<td style="text-align: right;"><strong>14</strong></td>
-<td style="text-align: right;">22 KB</td>
-</tr>
-</tbody>
-</table>
-<p>The first row is the apples-to-apples adb baseline most people compare
-against. The last row is what an agent loop actually uses. The middle
-rows let us isolate where each saving comes from.</p>
-<p>A few observations even before any explanation:</p>
+<h1 id="android-device-cloud-for-llm-agents">Android Device Cloud for LLM Agents<a class="headerlink" href="#android-device-cloud-for-llm-agents" title="Permanent link">&para;</a></h1>
+<p>Browser agents have a clear infrastructure model now.</p>
+<p>You create a browser session, give it to a model, watch the actions, collect logs, and tear it down when the run ends.</p>
+<p>Android agents need the same thing, but the device is harder.</p>
+<p>An Android session is not just a webpage. It has an OS, apps, permissions, push notifications, keyboards, secure screens, package state, and a UI tree that was not designed for language models.</p>
+<p>If you want reliable Android agents, you eventually need an Android device cloud built for agents, not just a generic mobile testing grid.</p>
+<!-- more -->
+
+<h2 id="quick-answer">Quick answer<a class="headerlink" href="#quick-answer" title="Permanent link">&para;</a></h2>
+<p>An Android device cloud for LLM agents should provide:</p>
 <ul>
-<li><code>screencap -p</code> has a <strong>huge variance</strong> — almost 5× between p10 and p90.</li>
-<li><code>screencap</code> <em>without</em> <code>-p</code> (raw RGBA) is consistent at ~675 ms even
-  though it ships 17.5 MB instead of 2 MB. Whatever causes the variance
-  is not transport bandwidth.</li>
-<li>All the <code>hs</code> paths are tight (~5% spread). Whatever's happening in
-  the warm daemon is deterministic.</li>
+<li>Ephemeral Android sessions.</li>
+<li>Fast <code>tap</code>, <code>fill</code>, <code>swipe</code>, and <code>wait</code> actions.</li>
+<li>Compact UI observations for prompts.</li>
+<li>Screenshots only when visual context matters.</li>
+<li>Logs, screenshots, and UI dumps for every step.</li>
+<li>Session recording and replay.</li>
+<li>Isolation between runs.</li>
+<li>A Python/API surface simple enough for agent loops.</li>
 </ul>
-<h2 id="where-does-adb-screencap-p-spend-its-time">Where does <code>adb screencap -p</code> spend its time?<a class="headerlink" href="#where-does-adb-screencap-p-spend-its-time" title="Permanent link">&para;</a></h2>
-<p>To break it apart, run <code>screencap</code> on the device only — capturing to a
-file rather than piping to host stdout — so we can see what's actually
-happening down there.</p>
-<table>
-<thead>
-<tr>
-<th>phase</th>
-<th style="text-align: right;">median</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>screencap    /sdcard/x.raw</code>   (capture + raw write)</td>
-<td style="text-align: right;">75 ms</td>
-</tr>
-<tr>
-<td><code>screencap -p /sdcard/x.png</code>   (capture + PNG encode)</td>
-<td style="text-align: right;">624 ms</td>
-</tr>
-<tr>
-<td><code>adb pull /sdcard/x.raw</code>       (17.5 MB transport)</td>
-<td style="text-align: right;">60 ms</td>
-</tr>
-<tr>
-<td><code>adb pull /sdcard/x.png</code>       (2 MB transport)</td>
-<td style="text-align: right;">25 ms</td>
-</tr>
-</tbody>
-</table>
-<p>An on-device capture takes about 75 ms — that's the cost of SurfaceFlinger
-producing a frame. Adding <code>-p</code> adds <strong>~549 ms</strong> of pure PNG encoding on
-the device's CPU. Transport is in the noise.</p>
-<p>In other words, <strong>almost 90% of <code>adb screencap -p</code>'s on-device time is
-PNG encoding</strong> — single-threaded zlib-style compression on the slowest
-CPU in the system, for an image you're probably going to delete in five
-seconds.</p>
-<p>That accounts for the 660-ms best case. The other ~1500 ms of variance
-in <code>adb exec-out screencap -p</code> shows up on top of that, and is a
-combination of:</p>
+<p>The device is the runtime. The UI dump is the observation. The action API is the actuator.</p>
+<h2 id="why-mobile-agents-need-different-infrastructure">Why mobile agents need different infrastructure<a class="headerlink" href="#why-mobile-agents-need-different-infrastructure" title="Permanent link">&para;</a></h2>
+<p>Traditional device clouds were built for test suites.</p>
+<p>The core workflow is:</p>
 <ol>
-<li><code>screencap</code> being spawned cold each call (fresh process, fresh
-   SurfaceFlinger client connection).</li>
-<li><code>adb exec-out</code> piping the PNG byte-by-byte through several buffering
-   layers (the on-device adbd, the USB transport, the host adb server,
-   your shell's stdout).</li>
-<li>The emulator's VM doing whatever else it does.</li>
+<li>Upload an app.</li>
+<li>Start a test.</li>
+<li>Run a framework such as Appium, Espresso, or XCTest.</li>
+<li>Collect a report.</li>
 </ol>
-<p>On a physical device the variance is smaller but the PNG floor doesn't
-move.</p>
-<h2 id="three-reasons-its-slow">Three reasons it's slow<a class="headerlink" href="#three-reasons-its-slow" title="Permanent link">&para;</a></h2>
-<p><strong>1. PNG encoding is wildly mismatched to the use case.</strong>
-PNG is a great archive format. It's a terrible "snapshot a frame for an
-LLM" format. JPEG q80 of the same image is ~14× smaller, and orders of
-magnitude faster to encode (Skia's JPEG path uses libjpeg-turbo with
-NEON SIMD; the PNG path is software zlib with no comparable
-acceleration). No agent loop cares about lossless screenshots — they
-care about "what's on the screen right now."</p>
-<p><strong>2. <code>screencap</code> is a fresh process every call.</strong>
-The binary starts, opens the SurfaceFlinger client, captures, encodes,
-exits. For one screenshot that's fine. For an agent doing 20 screenshots
-a minute, you're paying process startup and SurfaceFlinger handshake
-every single time.</p>
-<p><strong>3. <code>adb exec-out</code> pipes through several layers that don't love 2 MB.</strong>
-The PNG comes out of <code>screencap</code> in one fwrite, gets chunked by adbd
-into TCP/USB frames, goes through your host adb server, and arrives at
-your shell as stdout. Each hop has buffering that under load doesn't
-combine well. This is the variance source: best case 660 ms, worst 3 s.</p>
-<h2 id="what-handsets-does-differently">What Handsets does differently<a class="headerlink" href="#what-handsets-does-differently" title="Permanent link">&para;</a></h2>
-<p>Three things, each of which fixes one of the problems above.</p>
-<h3 id="1-a-warm-virtualdisplay-mirror-in-a-long-running-daemon">1. A warm VirtualDisplay mirror in a long-running daemon<a class="headerlink" href="#1-a-warm-virtualdisplay-mirror-in-a-long-running-daemon" title="Permanent link">&para;</a></h3>
-<p><code>hs use</code> spawns a small JVM process on the device under <code>app_process</code>
-(shell UID, hidden-API restrictions lifted). The daemon creates a
-<a href="https://developer.android.com/reference/android/hardware/display/VirtualDisplay"><code>VirtualDisplay</code></a>
-that mirrors the default display into an
-<a href="https://developer.android.com/reference/android/media/ImageReader"><code>ImageReader</code></a>
-at a configurable resolution, and keeps it open between commands.</p>
-<p>When you call <code>hs see x.jpg</code>, the latest frame is already sitting in
-memory. There's no SurfaceFlinger snapshot to wait for, no <code>screencap</code>
-process to start. The daemon acquires the most recent <code>Image</code> from the
-ImageReader (already produced asynchronously by the listener thread on
-the previous frame), JPEG-encodes it, and ships the bytes back.</p>
-<p>The relevant detail in the <a href="https://github.com/elliotgao2/handsets/blob/main/src/dev/handsets/daemon/Screenshot.java">mirror code</a>
-is that the listener thread does the expensive
-<code>copyPixelsFromBuffer</code> — the GPU-fence-blocking call — <em>without</em> holding
-the capture lock, then briefly takes the lock just to swap pointers.
-Capture threads only ever read the most recent fully-written bitmap and
-never wait on GPU work. A first call at a new resolution pays a one-time
-~50 ms cost to create the mirror; the cache holds the four most-recent
-sizes.</p>
-<h3 id="2-jpeg-is-the-default-png-is-opt-in">2. JPEG is the default; PNG is opt-in<a class="headerlink" href="#2-jpeg-is-the-default-png-is-opt-in" title="Permanent link">&para;</a></h3>
-<p><code>hs see x.jpg</code> is JPEG. <code>hs see x.png</code> is PNG. The file extension picks
-the format. Agents get JPEG by default because we know what they're
-going to do with it: ship it to a model. Debugging screenshots can ask
-for PNG.</p>
-<p>This single change accounts for most of the win: 24 ms (<code>hs see x.jpg</code>)
-vs 584 ms (<code>hs see x.png</code>). Both go through the same warm mirror at full
-resolution; the only difference is the encoder.</p>
-<h3 id="3-default-to-768-long-edge-for-the-agent-loop">3. Default to 768-long-edge for the agent loop<a class="headerlink" href="#3-default-to-768-long-edge-for-the-agent-loop" title="Permanent link">&para;</a></h3>
-<p>Most LLM agents don't need 1440×3120 pixels. They need "enough to see
-the screen." The raw wire command <code>screenshot</code> (without <code>max=1</code>) defaults
-to a 768-long-edge JPEG, which is 22 KB on disk and 12 ms end-to-end.</p>
-<p>The downscale happens inside the mirror itself — the VirtualDisplay is
-created at the <em>output</em> resolution, so we're not allocating a 1440×3120
-bitmap just to throw 80% of it away. Bigger sizes have their own warm
-mirror cached separately (<code>hs see x.jpg</code> triggers the full-res mirror),
-so you can mix and match without paying for the largest one every time.</p>
-<h2 id="layer-by-layer-wins">Layer-by-layer wins<a class="headerlink" href="#layer-by-layer-wins" title="Permanent link">&para;</a></h2>
-<p>Adding up the changes:</p>
+<p>That model is useful, but LLM agents behave differently.</p>
+<p>An agent may inspect the screen dozens or hundreds of times. It may need to retry actions, ask for a screenshot, inspect notifications, or recover from an unexpected permission dialog.</p>
+<p>The infrastructure has to support a tight loop:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>observe -&gt; decide -&gt; act -&gt; wait -&gt; observe
+</code></pre></div>
+<p>If each loop step is slow, verbose, or hard to debug, the agent becomes expensive and unreliable.</p>
+<h2 id="observation-compact-first-visual-second">Observation: compact first, visual second<a class="headerlink" href="#observation-compact-first-visual-second" title="Permanent link">&para;</a></h2>
+<p>Most Android agent loops start with a screenshot or UIAutomator XML.</p>
+<p>Both are useful. Neither should be the only observation.</p>
+<p>Screenshots are great for visual layout, but they are heavy. XML is structured, but it contains a lot of layout noise.</p>
+<p>For agents, a better default observation is an action table:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>fill  EditText  &quot;Email&quot;     #email     540,540
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>fill  EditText  &quot;Password&quot;  #password  540,640  [password]
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>tap   Button    &quot;Continue&quot;  #continue  540,860
+</code></pre></div>
+<p>That tells the model what it can do. Add a screenshot when the text UI is not enough:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>hs<span class="w"> </span>ui
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>hs<span class="w"> </span>see<span class="w"> </span>--size<span class="w"> </span><span class="m">768</span><span class="w"> </span>/tmp/screen.jpg
+</code></pre></div>
+<p>This keeps the prompt smaller and the action easier to audit.</p>
+<h2 id="action-labels-beat-pixels">Action: labels beat pixels<a class="headerlink" href="#action-labels-beat-pixels" title="Permanent link">&para;</a></h2>
+<p>A generic device cloud can expose raw taps:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tap&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;x&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">540</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;y&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">860</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>That is sometimes necessary, but it is not the best default.</p>
+<p>For agent runs, label-based actions are easier to understand:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tap&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Continue&quot;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>The run transcript is now readable. A human can see what the agent intended. A retry policy can distinguish <code>NOT_FOUND</code> from <code>AMBIGUOUS</code> from <code>TIMEOUT</code>.</p>
+<h2 id="debugging-is-the-product">Debugging is the product<a class="headerlink" href="#debugging-is-the-product" title="Permanent link">&para;</a></h2>
+<p>The hard part of agent infrastructure is not only running the device. It is understanding why a run failed.</p>
+<p>A useful Android agent cloud should keep a timeline:</p>
 <table>
 <thead>
 <tr>
-<th>change</th>
-<th>saves</th>
+<th>Step</th>
+<th>Data</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Warm VirtualDisplay vs cold <code>screencap</code></td>
-<td>~75 ms per call (skips the capture)</td>
+<td>Observation</td>
+<td>UI table, screenshot, top activity</td>
 </tr>
 <tr>
-<td>JPEG q80 vs PNG</td>
-<td>~550 ms per call (encode dominates)</td>
+<td>Model output</td>
+<td>Intended action and reasoning if available</td>
 </tr>
 <tr>
-<td>TCP forward vs <code>exec-out</code> pipe</td>
-<td>~1500 ms when adb is in a bad mood (variance)</td>
+<td>Action</td>
+<td>Tap/fill/swipe/wait payload</td>
 </tr>
 <tr>
-<td>768-long-edge default</td>
-<td>another ~10 ms (smaller encode + smaller transport)</td>
+<td>Result</td>
+<td>Success or structured error</td>
+</tr>
+<tr>
+<td>Artifacts</td>
+<td>Logs, screenshot, UI dump</td>
 </tr>
 </tbody>
 </table>
-<p>The first three together get you to <code>hs see x.jpg</code>'s 24 ms. The last
-shaves the agent default to 12 ms.</p>
-<h2 id="when-this-matters-and-when-it-doesnt">When this matters (and when it doesn't)<a class="headerlink" href="#when-this-matters-and-when-it-doesnt" title="Permanent link">&para;</a></h2>
-<p><strong>Matters</strong> if you're:</p>
-<ul>
-<li>An LLM agent that screenshots after every action (typical loop: act,
-  screenshot, dump UI, decide, repeat).</li>
-<li>A test framework that wants to record a frame every X ms.</li>
-<li>A monitoring system polling for visual changes.</li>
-<li>Anything where screenshot latency is on the user-perceived path.</li>
-</ul>
-<p><strong>Probably doesn't matter</strong> if you're:</p>
-<ul>
-<li>Taking one screenshot a day for a bug report.</li>
-<li>Recording a video — <code>hs see</code> (the bare GUI viewer) uses MediaCodec
-  H.264 streaming via <a href="https://github.com/elliotgao2/handsets/blob/main/src/dev/handsets/daemon/H264Streamer.java"><code>H264Streamer.java</code></a>,
-  a separate path.</li>
-<li>Working over a slow remote <code>adb tcpip</code> link where the wire, not the
-  encode, is the bottleneck.</li>
-</ul>
-<p>For the agent case specifically: a 12-ms screenshot lets you treat
-screenshots as free relative to the rest of the loop (UI dump is ~150
-ms, an LLM round-trip is seconds). Two-second screenshots make
-screenshotting the dominant cost, and you start skipping them — at
-which point your agent gets flakier.</p>
-<h2 id="caveats">Caveats<a class="headerlink" href="#caveats" title="Permanent link">&para;</a></h2>
-<ul>
-<li>These numbers are from an emulator. Physical devices have lower
-  variance on the <code>adb exec-out</code> path (typically 600–900 ms instead of
-  2–3 s) and faster on-device JPEG encoding. The relative ordering
-  doesn't change.</li>
-<li>The first call after a resolution change pays a one-time ~50 ms cost
-  to create the new VirtualDisplay mirror.</li>
-<li>If a foreground window has <code>FLAG_SECURE</code>, both adb and Handsets
-  produce an all-black frame. Handsets detects this and returns a
-  named error pointing at the offending window instead of silently
-  handing you a black PNG.</li>
-<li>The daemon runs as the shell UID via <code>app_process</code>, with hidden-API
-  restrictions lifted. That's necessary because <code>createVirtualDisplay</code>
-  rejects the system Context's op-package on Android 14+; we have to
-  forge a <code>com.android.shell</code> package context. The init comments in
-  <code>Screenshot.java</code> explain the three-tier strategy.</li>
-</ul>
-<h2 id="reproducing">Reproducing<a class="headerlink" href="#reproducing" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Set up</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/elliotgao2/handsets/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>hs<span class="w"> </span>use
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Headline benchmark</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s">import statistics, subprocess, time</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s">def t(cmd):</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="s">    for _ in range(3): subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s">    s = []</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s">    for _ in range(20):</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s">        t0 = time.perf_counter_ns()</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s">        subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL)</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="s">        s.append((time.perf_counter_ns() - t0) / 1e6)</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="s">    s.sort()</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="s">    return statistics.median(s)</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="s">print(f&quot;adb -p:     {t(&#39;adb exec-out screencap -p &gt; /tmp/a.png&#39;):.1f} ms&quot;)</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="s">print(f&quot;hs jpg:     {t(&#39;hs see /tmp/h.jpg&#39;):.1f} ms&quot;)</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="s">print(f&quot;hs default: {t(\&quot;hs do &#39;screenshot&#39; &gt; /tmp/h2.jpg\&quot;):.1f} ms&quot;)</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="s">PY</span>
+<p>When the agent fails, you should be able to replay the path:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>1. saw &quot;Sign in&quot;
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>2. tapped &quot;Sign in&quot;
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>3. filled &quot;Email&quot;
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>4. filled &quot;Password&quot;
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>5. tapped &quot;Continue&quot;
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>6. timed out waiting for &quot;Dashboard&quot;
 </code></pre></div>
-<p>If you reproduce something materially different, open an issue with
-your device model and Android version — the numbers above are honest
-but I'm curious where they hold and where they don't.</p>
+<p>Without that, every failure becomes a mystery screenshot.</p>
+<h2 id="isolation-matters">Isolation matters<a class="headerlink" href="#isolation-matters" title="Permanent link">&para;</a></h2>
+<p>Android sessions carry state:</p>
+<ul>
+<li>Installed apps.</li>
+<li>Login sessions.</li>
+<li>Runtime permissions.</li>
+<li>Clipboard.</li>
+<li>Notifications.</li>
+<li>System settings.</li>
+<li>Cached data.</li>
+</ul>
+<p>An agent cloud has to decide how sessions are reset. Emulators are easier to snapshot. Real devices are harder but closer to production.</p>
+<p>For most agent experiments, emulator sessions are enough. For mobile RPA or app-store reality checks, real devices become important.</p>
+<h2 id="where-handsets-fits">Where Handsets fits<a class="headerlink" href="#where-handsets-fits" title="Permanent link">&para;</a></h2>
+<p>Handsets is not a full device cloud by itself.</p>
+<p>It is the control plane a cloud can build on:</p>
+<ul>
+<li>no-root device actions through ADB</li>
+<li>compact UI dumps</li>
+<li>label-based selectors</li>
+<li>screenshots and logs</li>
+<li>Python and subprocess integration</li>
+<li>a terminal UI for human debugging</li>
+</ul>
+<p>The local loop looks like:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>hs<span class="w"> </span>use
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>hs<span class="w"> </span>ui
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>hs<span class="w"> </span>tap<span class="w"> </span><span class="s2">&quot;Continue&quot;</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>hs<span class="w"> </span><span class="nb">wait</span><span class="w"> </span><span class="s2">&quot;Dashboard&quot;</span>
+</code></pre></div>
+<p>A hosted version would wrap that in session management, auth, billing, isolation, recording, and replay.</p>
+<h2 id="faq">FAQ<a class="headerlink" href="#faq" title="Permanent link">&para;</a></h2>
+<h3 id="is-an-android-device-cloud-the-same-as-appium-cloud-testing">Is an Android device cloud the same as Appium cloud testing?<a class="headerlink" href="#is-an-android-device-cloud-the-same-as-appium-cloud-testing" title="Permanent link">&para;</a></h3>
+<p>Not exactly. Appium clouds are usually optimized for test suites. An Android agent cloud needs lower-latency observations, compact prompt-friendly UI output, and better step-by-step replay for model-driven runs.</p>
+<h3 id="do-llm-agents-need-real-android-devices">Do LLM agents need real Android devices?<a class="headerlink" href="#do-llm-agents-need-real-android-devices" title="Permanent link">&para;</a></h3>
+<p>Sometimes. Emulators are enough for many app flows and experiments. Real devices matter when hardware behavior, OEM skins, push delivery, biometrics, or production-like behavior matters.</p>
+<h3 id="why-not-just-use-screenshots">Why not just use screenshots?<a class="headerlink" href="#why-not-just-use-screenshots" title="Permanent link">&para;</a></h3>
+<p>Screenshots are useful, but they are expensive and ambiguous. A compact UI table gives the model actionable labels and controls. Use screenshots as an additional observation, not the only one.</p>
+<h3 id="does-this-require-root">Does this require root?<a class="headerlink" href="#does-this-require-root" title="Permanent link">&para;</a></h3>
+<p>No. A useful Android agent runtime can operate through ADB and the shell user for normal UI automation. Some protected screens and app-private data remain protected.</p>
 <h2 id="related-guides">Related guides<a class="headerlink" href="#related-guides" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../how-to-take-screenshots-on-android-without-root/">How to Take Screenshots on Android Without Root</a></li>
-<li><a href="../android-ui-dump-for-llms/">An Android UI Dump for LLMs</a></li>
-<li><a href="../tapping-android-in-5ms-vs-appium-uiautomator2/">Tapping Android in 5 ms</a></li>
+<li><a href="../android-automation-for-llm-agents/">Android Automation for LLM Agents</a></li>
+<li><a href="../stop-wasting-tokens-on-android-automation/">Stop Wasting Tokens on Android Automation</a></li>
+<li><a href="../android-terminal-ui/">A Terminal UI for Driving Android Apps</a></li>
 </ul>
-<hr />
-<p><em><a href="https://github.com/elliotgao2/handsets">Handsets</a> is a CLI for driving
-Android devices, built for LLM agents and shell scripts. MIT.</em></p>
 
 
 

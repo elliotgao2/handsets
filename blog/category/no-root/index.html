@@ -712,6 +712,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -889,6 +895,36 @@
   
   
     <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
       <a href="../design/" class="md-nav__link">
         
   
@@ -897,6 +933,36 @@
     
   
     Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../device-cloud/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Device cloud
   
 
     
@@ -1111,6 +1177,36 @@
   
   
     <li class="md-nav__item">
+      <a href="../rpa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RPA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
       <a href="../rust/" class="md-nav__link">
         
   
@@ -1299,6 +1395,55 @@
       <header class="md-typeset">
         <h1 id="no-root">No root<a class="headerlink" href="#no-root" title="Permanent link">&para;</a></h1>
       </header>
+      
+        <article class="md-post md-post--excerpt">
+  <header class="md-post__header">
+    
+    <div class="md-post__meta md-meta">
+      <ul class="md-meta__list">
+        <li class="md-meta__item">
+          <time datetime="2026-05-26 00:00:00+00:00">May 26, 2026</time></li>
+        
+          <li class="md-meta__item">
+            in
+            
+              <a href="../android-automation/" class="md-meta__link">Android automation</a>, 
+              <a href="../rpa/" class="md-meta__link">RPA</a>, 
+              <a href="./" class="md-meta__link">No root</a></li>
+        
+        
+          
+          <li class="md-meta__item">
+            
+              3 min read
+            
+          </li>
+        
+        
+      </ul>
+      
+    </div>
+  </header>
+  <div class="md-post__content md-typeset">
+    <h2 id="mobile-rpa-on-android-without-root"><a class="toclink" href="../../mobile-rpa-android-without-root/">Mobile RPA on Android Without Root</a></h2>
+<p>Mobile RPA usually starts with a simple sentence:</p>
+<blockquote>
+<p>We need to do the same thing in this Android app every day.</p>
+</blockquote>
+<p>Maybe it is checking an account. Maybe it is downloading a report. Maybe it is entering a code, reading a status, or moving data between an app and an internal system.</p>
+<p>If the app has no API, automation falls back to the UI.</p>
+<p>You can automate many Android app workflows without root. The trick is to keep the workflow close to what a human sees: tap labels, fill fields, wait for screens, and save evidence when something breaks.</p>
+
+    
+      <nav class="md-post__action">
+        <a href="../../mobile-rpa-android-without-root/">
+          Continue reading
+        </a>
+      </nav>
+    
+    
+  </div>
+</article>
       
         <article class="md-post md-post--excerpt">
   <header class="md-post__header">
@@ -1624,7 +1769,7 @@
 <p>Installing an APK does not require root.</p>
 <p>It never has, as long as the device allows debugging or sideloading. For development and testing, the normal path is <code>adb install</code>. It talks to Android's package manager through the permissions already available to the shell user.</p>
 <p>Handsets keeps that workflow close to the rest of your device automation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>hs<span class="w"> </span>install<span class="w"> </span>app-debug.apk
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>hs<span class="w"> </span>install<span class="w"> </span>app-debug.apk
 </code></pre></div>
 <p>The useful part is what happens after install. You can launch the app, wait for the first screen, and verify that the UI is actually alive.</p>
 
@@ -1722,56 +1867,6 @@
     
       <nav class="md-post__action">
         <a href="../../how-to-run-mobile-qa-tests-without-rooted-phones/">
-          Continue reading
-        </a>
-      </nav>
-    
-    
-  </div>
-</article>
-      
-        <article class="md-post md-post--excerpt">
-  <header class="md-post__header">
-    
-    <div class="md-post__meta md-meta">
-      <ul class="md-meta__list">
-        <li class="md-meta__item">
-          <time datetime="2026-05-24 00:00:00+00:00">May 24, 2026</time></li>
-        
-          <li class="md-meta__item">
-            in
-            
-              <a href="../screenshots/" class="md-meta__link">Screenshots</a>, 
-              <a href="./" class="md-meta__link">No root</a></li>
-        
-        
-          
-          <li class="md-meta__item">
-            
-              3 min read
-            
-          </li>
-        
-        
-      </ul>
-      
-    </div>
-  </header>
-  <div class="md-post__content md-typeset">
-    <h2 id="how-to-take-screenshots-on-android-without-root"><a class="toclink" href="../../how-to-take-screenshots-on-android-without-root/">How to Take Screenshots on Android Without Root</a></h2>
-<p>You can take screenshots from an Android phone without root.</p>
-<p>Android already allows the shell user to capture normal, non-secure windows through the system screenshot path. The catch is that the usual command is not very friendly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>adb<span class="w"> </span>exec-out<span class="w"> </span>screencap<span class="w"> </span>-p<span class="w"> </span>&gt;<span class="w"> </span>screen.png
-</code></pre></div>
-<p>It works. It is also slow, always PNG, and awkward when you are taking screenshots inside a loop.</p>
-<p>Handsets gives you a smaller command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>hs<span class="w"> </span>see<span class="w"> </span>screen.jpg
-</code></pre></div>
-<p>No root. No installed app. Just <code>adb</code>.</p>
-
-    
-      <nav class="md-post__action">
-        <a href="../../how-to-take-screenshots-on-android-without-root/">
           Continue reading
         </a>
       </nav>
