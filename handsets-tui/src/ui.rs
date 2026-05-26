@@ -63,9 +63,16 @@ fn draw_list(f: &mut Frame, area: Rect, app: &mut App) {
     let class_w = app.elements.iter().map(|e| e.cls_short.len()).max().unwrap_or(0);
     let label_w = app.elements.iter().map(|e| display_width(&e.label).min(40)).max().unwrap_or(0);
     let id_w    = app.elements.iter().map(|e| e.rid_short.len()).max().unwrap_or(0);
+    // Fixed coord widths so the comma column stays put even between screens
+    // (and even across different elements lists). 4 digits each covers any
+    // Android device up to 9999 px on either axis — every phone and most
+    // tablets. Larger displays expand the cell locally without disturbing
+    // the layout of other rows.
+    const CX_W: usize = 4;
+    const CY_W: usize = 4;
 
     let items: Vec<ListItem> = app.elements.iter().enumerate().map(|(i, el)| {
-        let spans = format_row(el, verb_w, class_w, label_w, id_w);
+        let spans = format_row(el, verb_w, class_w, label_w, id_w, CX_W, CY_W);
         let mut item = ListItem::new(Line::from(spans));
         if Some(i) == app.cursor {
             item = item.style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
@@ -82,7 +89,11 @@ fn draw_list(f: &mut Frame, area: Rect, app: &mut App) {
     f.render_stateful_widget(list, area, &mut state);
 }
 
-fn format_row(el: &Element, verb_w: usize, class_w: usize, label_w: usize, id_w: usize) -> Vec<Span<'_>> {
+fn format_row(
+    el: &Element,
+    verb_w: usize, class_w: usize, label_w: usize, id_w: usize,
+    cx_w: usize, cy_w: usize,
+) -> Vec<Span<'_>> {
     let verb_style = match el.verb {
         Verb::Tap  => Style::default().fg(Color::Green),
         Verb::Fill => Style::default().fg(Color::Yellow),
@@ -100,7 +111,18 @@ fn format_row(el: &Element, verb_w: usize, class_w: usize, label_w: usize, id_w:
 
     let flags_field = compact_flags(&el.flags);
 
+    // Coords first. Moving them to the leftmost column makes alignment
+    // trivial — they're not downstream of any label whose East Asian width
+    // is 2 columns per character (Chinese / Japanese / Korean) but only
+    // counts as 1 in `str::chars().count()`. With coords at col 0 the eye
+    // gets a clean vertical column of (cx,cy) regardless of label content.
     let mut spans = vec![
+        Span::styled(
+            format!("{cx:>cx_w$},{cy:>cy_w$}",
+                cx = el.cx, cy = el.cy, cx_w = cx_w, cy_w = cy_w),
+            Style::default().fg(Color::DarkGray),
+        ),
+        Span::raw("  "),
         Span::styled(format!("{:<verb_w$}", el.verb.as_str(), verb_w = verb_w), verb_style),
         Span::raw("  "),
         Span::styled(format!("{:<class_w$}", el.cls_short, class_w = class_w),
@@ -111,8 +133,6 @@ fn format_row(el: &Element, verb_w: usize, class_w: usize, label_w: usize, id_w:
         Span::raw("  "),
         Span::styled(format!("{:<id_w$}", id_field, id_w = id_w),
             Style::default().fg(Color::Magenta)),
-        Span::raw("  "),
-        Span::styled(format!("{},{}", el.cx, el.cy), Style::default().fg(Color::DarkGray)),
     ];
 
     if !flags_field.is_empty() {

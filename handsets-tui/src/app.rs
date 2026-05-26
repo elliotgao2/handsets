@@ -169,11 +169,19 @@ impl App {
         }
         if let Some(els) = latest {
             let fp = elements_fingerprint(&els);
-            let preserve = self.cursor.and_then(|i| self.elements.get(i).map(|e| e.key()));
-            self.cursor   = pick_cursor(&els, preserve, self.cursor);
-            // The user explicitly asked for the warning to disappear on UI
-            // change — same trigger we use for "tap succeeded" affordance.
-            if fp != self.last_fp { self.status = None; }
+            // Only reconcile the cursor when the list actually changed.
+            // Re-running pick_cursor every tick used to pin the cursor to the
+            // first element matching `(rid, label, cx, cy)` — so when two
+            // rows had identical keys (overlapping nodes, parent+child with
+            // same bounds), pressing j to step onto the duplicate snapped
+            // back to its twin on the very next watcher tick. Leaving the
+            // cursor untouched on no-op ticks lets j/k move freely; we still
+            // preserve-by-key when the list genuinely changes.
+            if fp != self.last_fp {
+                let preserve = self.cursor.and_then(|i| self.elements.get(i).map(|e| e.key()));
+                self.cursor  = pick_cursor(&els, preserve, self.cursor);
+                self.status  = None;
+            }
             self.last_fp  = fp;
             self.elements = els;
         }
