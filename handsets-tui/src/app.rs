@@ -40,6 +40,11 @@ pub struct App {
     pub mode:       Mode,
     pub status:     Option<Status>,
     pub last_fp:    u64,
+    /// Hash of the last frame we actually painted. The render loop ticks at
+    /// 60 fps for snappy key response, but we only call `terminal.draw()`
+    /// when this fingerprint differs from the current one — classic
+    /// dirty-checking on top of ratatui's cell-level diffing.
+    pub last_drawn_fp: u64,
 
     pub should_quit: bool,
 }
@@ -85,29 +90,66 @@ impl App {
             mode:     Mode::Browse,
             status:   None,
             last_fp:  0,
+            last_drawn_fp: 0,
             should_quit: false,
         })
     }
 
     pub fn run<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
-        // 50ms tick = 20 fps redraw budget. Watcher fires at ~10 fps so we
-        // always have a fresh snapshot to render against.
-        const TICK: Duration = Duration::from_millis(50);
+        // 16ms tick = 60 Hz event-loop budget — keeps key handling snappy.
+        // Drawing itself is dirty-checked: when the frame fingerprint hasn't
+        // changed (no new snapshot, no cursor move, no status update), we
+        // skip terminal.draw() entirely. On idle screens that means ~zero
+        // work per tick; on busy screens we still paint at watcher cadence.
+        const TICK: Duration = Duration::from_millis(16);
 
         loop {
             self.drain_watcher();
             self.expire_status();
-            terminal.draw(|f| ui::draw(f, self))?;
+
+            let fp = self.frame_fingerprint();
+            if fp != self.last_drawn_fp {
+                terminal.draw(|f| ui::draw(f, self))?;
+                self.last_drawn_fp = fp;
+            }
             if self.should_quit { return Ok(()); }
 
             if event::poll(TICK)? {
-                if let Event::Key(k) = event::read()? {
-                    if k.kind == KeyEventKind::Press {
-                        self.handle_key(k)?;
-                    }
+                match event::read()? {
+                    Event::Key(k) if k.kind == KeyEventKind::Press => self.handle_key(k)?,
+                    // Terminal resize invalidates ratatui's cached cell grid.
+                    // Force a repaint next iteration by clearing the dirty bit.
+                    Event::Resize(_, _) => self.last_drawn_fp = 0,
+                    _ => {}
                 }
             }
         }
+    }
+
+    /// Hash of everything that affects what's on screen. If two consecutive
+    /// loops produce the same fingerprint we skip terminal.draw — saves the
+    /// CPU + terminal-IO cost of repainting an unchanged frame at 60 fps.
+    fn frame_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.last_fp.hash(&mut h);              // elements
+        self.cursor.hash(&mut h);
+        match &self.mode {
+            Mode::Browse => 0u8.hash(&mut h),
+            Mode::Inputting { target_label, target_rid, target_cx, target_cy, buffer } => {
+                1u8.hash(&mut h);
+                target_label.hash(&mut h);
+                target_rid.hash(&mut h);
+                target_cx.hash(&mut h);
+                target_cy.hash(&mut h);
+                buffer.hash(&mut h);
+            }
+        }
+        match &self.status {
+            Some(s) => { 1u8.hash(&mut h); s.text.hash(&mut h); s.is_error.hash(&mut h); }
+            None    => { 0u8.hash(&mut h); }
+        }
+        h.finish()
     }
 
     fn drain_watcher(&mut self) {
