@@ -192,6 +192,8 @@ Long mobile trajectories repeat screen observations many times. Reducing each ob
 
 ## Related guides
 
+- [Android Device Cloud for LLM Agents](2026-05-26-android-device-cloud-for-llm-agents.md)
+- [How to Debug LLM-Driven Android Automation Runs](2026-05-26-debug-llm-android-automation-runs.md)
 - [A Terminal UI for Driving Android Apps](2026-05-25-android-terminal-ui.md)
 - [Stop Wasting Tokens on Android Automation](2026-05-24-stop-wasting-tokens-on-android-automation.md)
 - [An Android UI Dump for LLMs](2026-05-22-android-ui-dump-for-llms.md)
