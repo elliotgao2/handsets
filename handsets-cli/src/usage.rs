@@ -11,7 +11,7 @@ hs — drive Android from the shell. Built for LLM agents and humans.
 Usage: hs [--device SERIAL] [--json] <verb> [args]
 
 The agent loop:
-  hs use                       connect a device, start the daemon
+  hs use [SERIAL]              connect a device, start the daemon
   hs ui                        flat table of tappable nodes (the LLM input format)
   hs tap \"Continue\"             find by text, tap centre
   hs tap #back_btn             find by resource-id, tap centre
@@ -75,7 +75,7 @@ Exit codes:
 Global options:
   --host HOST        default 127.0.0.1
   --port PORT        default 9008
-  --device, -s SERIAL  route to the daemon for SERIAL
+  --device, -s SERIAL  route to a daemon, or select the device for `hs use`
   --json             default output to JSON (or set HS_FORMAT=json)
 
 Low-level / debugging:
