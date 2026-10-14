@@ -164,6 +164,9 @@ fn parse_use(rest: &[&str]) -> Result<daemon::ConnectOpts, String> {
                 opts.port = Some(rest.get(i).ok_or("--port needs a value")?
                     .parse().map_err(|_| "invalid --port".to_string())?);
             }
+            serial if !serial.starts_with('-') && opts.serial.is_none() => {
+                opts.serial = Some(serial.to_string());
+            }
             other => return Err(format!("unknown connect arg: {other}")),
         }
         i += 1;
@@ -384,14 +387,15 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         i += 1;
     }
 
-    // `--device SERIAL` resolves to the per-device forwarded port so the
-    // rest of the CLI can stay device-agnostic. We deliberately do this
-    // before verb parsing so a missing forward fails fast with a clear
-    // error rather than later as "no daemon listening".
-    if let Some(serial) = device_serial.as_deref() {
-        match resolve_device_port(serial) {
-            Ok(p) => port = p,
-            Err(e) => return Err(e),
+    // During `use`, `--device SERIAL` selects the ADB device to bootstrap.
+    // Other verbs use it to route to a daemon that `hs use` already started.
+    let is_use = positional.first() == Some(&"use");
+    if !is_use {
+        if let Some(serial) = device_serial.as_deref() {
+            match resolve_device_port(serial) {
+                Ok(p) => port = p,
+                Err(e) => return Err(e),
+            }
         }
     }
 
@@ -400,7 +404,18 @@ fn parse_args(args: &[String]) -> Result<Opts, String> {
         None => Cmd::Devices,
 
         // ─── Lifecycle ────────────────────────────────────────────────
-        Some((&"use", rest))  => Cmd::Connect(parse_use(rest)?),
+        Some((&"use", rest)) => {
+            let mut connect = parse_use(rest)?;
+            if let Some(serial) = device_serial.as_deref() {
+                if let Some(selected) = connect.serial.as_deref() {
+                    if selected != serial {
+                        return Err("conflicting device selectors for `hs use`".into());
+                    }
+                }
+                connect.serial = Some(serial.to_string());
+            }
+            Cmd::Connect(connect)
+        }
         Some((&"drop", rest)) => Cmd::Disconnect(parse_drop(rest)?),
 
         // ─── See — capture by extension, bare = viewer ───────────────
@@ -2394,5 +2409,41 @@ fn try_auto_use(port: u16) -> Result<(), String> {
         n => Err(format!(
             "{n} devices attached; pass `hs use SERIAL` to pick one"
         )),
+    }
+}
+
+#[cfg(test)]
+mod parse_use_tests {
+    use super::{parse_args, Cmd};
+
+    fn selected_serial(args: &[&str]) -> Option<String> {
+        let args = args.iter().map(|arg| (*arg).to_string()).collect::<Vec<_>>();
+        let opts = parse_args(&args).expect("use arguments should parse");
+        match opts.cmd {
+            Cmd::Connect(connect) => connect.serial,
+            other => panic!("expected connect command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn use_accepts_serial_as_a_positional_argument() {
+        assert_eq!(selected_serial(&["use", "192.168.0.10:5555"]),
+            Some("192.168.0.10:5555".into()));
+    }
+
+    #[test]
+    fn global_device_selects_the_device_during_bootstrap() {
+        assert_eq!(selected_serial(&["--device", "SERIAL", "use"]),
+            Some("SERIAL".into()));
+        assert_eq!(selected_serial(&["use", "--device", "SERIAL"]),
+            Some("SERIAL".into()));
+    }
+
+    #[test]
+    fn conflicting_bootstrap_selectors_are_rejected() {
+        let args = ["--device", "SERIAL_A", "use", "SERIAL_B"]
+            .iter().map(|arg| (*arg).to_string()).collect::<Vec<_>>();
+        let error = parse_args(&args).expect_err("conflicting selectors must fail");
+        assert!(error.contains("conflicting device selectors"));
     }
 }
